@@ -315,32 +315,401 @@ SCENARIO_AUTH_CONFIG: Dict[str, Any] = {
     },
 }
 
-    # Update keywords with domain-specific terms
-SCENARIO_PAYMENT_DB_POOL["keywords"] = ["payment", "pool", "exhaust", "500", "database timeout", "payments_db"]
-SCENARIO_HIGH_LATENCY["keywords"] = ["latency", "slow", "performance", "order-service", "orders_db", "degradation"]
-SCENARIO_BAD_DEPLOYMENT["keywords"] = ["deploy", "release", "regression", "checkout-service", "v2.4.1", "billingaddress", "crash"]
-SCENARIO_AUTH_CONFIG["keywords"] = ["auth", "token", "jwt", "unauthorized", "signature", "jwks", "401", "api-gateway", "audience"]
+# ─── Novel Scenarios & Generic Baseline ──────────────────────────────────────
+
+SCENARIO_BASELINE_NORMAL: Dict[str, Any] = {
+    "name": "baseline-normal",
+    "keywords": ["normal", "healthy", "baseline", "operational", "nominal"],
+    "logs": [
+        {
+            "timestamp": "2026-10-08T20:50:00Z",
+            "level": "INFO",
+            "service": "api-service",
+            "message": "Routine health check succeeded: HTTP 200 OK across all workers",
+        },
+        {
+            "timestamp": "2026-10-08T20:50:10Z",
+            "level": "INFO",
+            "service": "api-service",
+            "message": "Scheduled garbage collection cycle completed in 8ms",
+        },
+    ],
+    "health": {
+        "status": "healthy",
+        "service": "api-service",
+        "healthy": True,
+        "checks": {
+            "api-service-http": {"status": "ok", "latency_ms": 12},
+            "database-connectivity": {"status": "ok", "latency_ms": 3},
+            "cache": {"status": "ok", "latency_ms": 1},
+        },
+        "summary": "All system health checks operational within normal thresholds.",
+    },
+    "database": {
+        "status": "healthy",
+        "database_name": "primary_db",
+        "active_connections": 5,
+        "max_connections": 100,
+        "pool_utilization": 0.05,
+        "waiting_queries": 0,
+        "slow_queries_count": 0,
+        "summary": "Database operating with minimal load (5% pool utilization).",
+    },
+    "metrics": {
+        "service": "api-service",
+        "error_rate": 0.001,
+        "latency_p99_ms": 48,
+        "latency_p50_ms": 14,
+        "request_rate_rps": 250,
+        "cpu_utilization": 0.18,
+        "memory_utilization": 0.32,
+        "summary": "Nominal traffic and performance metrics within expected SLA parameters.",
+    },
+    "deployment": [
+        {
+            "service": "api-service",
+            "version": "v1.4.0",
+            "deployed_at": "2026-10-01T08:00:00Z",
+            "status": "successful",
+            "commit": "1f8e23a",
+            "message": "Routine maintenance release",
+        }
+    ],
+    "configuration": {
+        "service": "api-service",
+        "current": {"MAX_WORKERS": "16"},
+        "recent_changes": [],
+        "summary": "No recent configuration modifications.",
+    },
+}
+
+SCENARIO_DEPENDENCY_LATENCY: Dict[str, Any] = {
+    "name": "dependency-latency",
+    "keywords": [
+        "dependency",
+        "inventory-service",
+        "order-api",
+        "downstream",
+        "timeout calling",
+        "upstream",
+        "external",
+    ],
+    "logs": [
+        {
+            "timestamp": "2026-10-08T20:30:10Z",
+            "level": "ERROR",
+            "service": "order-api",
+            "message": "Upstream request failed: HTTP 504 Gateway Timeout calling http://inventory-service.internal:8080/v1/stock/reserve after 8000ms",
+            "context": {"dependency": "inventory-service", "endpoint": "/v1/stock/reserve"},
+        },
+        {
+            "timestamp": "2026-10-08T20:30:15Z",
+            "level": "ERROR",
+            "service": "order-api",
+            "message": "Repeated timeout errors calling downstream dependency inventory-service: connection deadline exceeded (8400ms)",
+            "context": {"dependency": "inventory-service", "retry_count": 3},
+        },
+        {
+            "timestamp": "2026-10-08T20:30:22Z",
+            "level": "WARN",
+            "service": "order-api",
+            "message": "Circuit breaker degraded for inventory-service; falling back to synchronous degraded queue",
+            "context": {"circuit_breaker": "inventory-service", "state": "HALF_OPEN"},
+        },
+    ],
+    "health": {
+        "status": "degraded",
+        "service": "order-api",
+        "healthy": False,
+        "checks": {
+            "order-api-http": {"status": "degraded", "latency_ms": 8400},
+            "inventory-service": {
+                "status": "failing",
+                "message": "inventory-service response latency elevated to 8.4s",
+                "latency_ms": 8420,
+            },
+            "database-connectivity": {"status": "ok", "latency_ms": 4},
+            "redis-cache": {"status": "ok", "latency_ms": 2},
+        },
+        "summary": "Service degraded due to high downstream latency on inventory-service dependency",
+    },
+    "database": {
+        "status": "healthy",
+        "database_name": "orders_db",
+        "active_connections": 8,
+        "max_connections": 100,
+        "pool_utilization": 0.08,
+        "waiting_queries": 0,
+        "slow_queries_count": 0,
+        "summary": "Database is completely healthy with 8% connection pool utilization.",
+    },
+    "metrics": {
+        "service": "order-api",
+        "error_rate": 0.48,
+        "latency_p99_ms": 8400,
+        "latency_p50_ms": 220,
+        "request_rate_rps": 380,
+        "cpu_utilization": 0.24,
+        "memory_utilization": 0.36,
+        "summary": "P99 latency surged from 220ms to 8.4s due to downstream inventory-service timeouts; local CPU/DB normal.",
+    },
+    "deployment": [
+        {
+            "service": "order-api",
+            "version": "v2.1.0",
+            "deployed_at": "2026-10-02T14:00:00Z",
+            "status": "successful",
+            "commit": "8fe721a",
+            "message": "Previous stable release",
+        }
+    ],
+    "configuration": {
+        "service": "order-api",
+        "current": {"INVENTORY_TIMEOUT_MS": "8000"},
+        "recent_changes": [],
+        "summary": "No relevant configuration changes in the last 72 hours.",
+    },
+}
+
+SCENARIO_QUEUE_BACKLOG: Dict[str, Any] = {
+    "name": "queue-backlog",
+    "keywords": [
+        "queue",
+        "backlog",
+        "consumer",
+        "worker",
+        "background",
+        "jobs",
+        "celery",
+        "sqs",
+        "rabbitmq",
+        "stuck",
+    ],
+    "logs": [
+        {
+            "timestamp": "2026-10-08T20:25:00Z",
+            "level": "WARN",
+            "service": "worker-service",
+            "message": "Queue backlog threshold exceeded: 2000000 pending jobs waiting in queue 'orders-processing'",
+            "context": {"queue_depth": 2000000, "queue": "orders-processing"},
+        },
+        {
+            "timestamp": "2026-10-08T20:25:15Z",
+            "level": "ERROR",
+            "service": "worker-service",
+            "message": "Consumer processing throughput collapsed to 0.05 jobs/sec; queue processing stalled",
+            "context": {"throughput": 0.05, "expected": 500},
+        },
+    ],
+    "health": {
+        "status": "degraded",
+        "service": "worker-service",
+        "healthy": False,
+        "checks": {
+            "worker-process": {"status": "ok", "message": "Worker process alive"},
+            "queue-depth": {
+                "status": "critical",
+                "message": "Queue depth at 2,000,000 items with near-zero drain rate",
+            },
+            "database-connectivity": {"status": "ok", "latency_ms": 3},
+        },
+        "summary": "Worker processing halted due to massive queue backlog and stalled consumers",
+    },
+    "database": {
+        "status": "healthy",
+        "database_name": "jobs_db",
+        "active_connections": 4,
+        "max_connections": 100,
+        "pool_utilization": 0.04,
+        "waiting_queries": 0,
+        "slow_queries_count": 0,
+        "summary": "Database healthy.",
+    },
+    "metrics": {
+        "service": "worker-service",
+        "queue_depth": 2000000,
+        "error_rate": 0.02,
+        "request_rate_rps": 0.05,
+        "latency_p99_ms": 45000,
+        "cpu_utilization": 0.09,
+        "memory_utilization": 0.28,
+        "summary": "Queue depth reached 2,000,000; consumer throughput near zero; worker process healthy.",
+    },
+    "deployment": [
+        {
+            "service": "worker-service",
+            "version": "v1.8.0",
+            "deployed_at": "2026-10-01T09:00:00Z",
+            "status": "successful",
+            "commit": "5a4192b",
+        }
+    ],
+    "configuration": {
+        "service": "worker-service",
+        "current": {"MAX_CONCURRENCY": "20"},
+        "recent_changes": [],
+        "summary": "No recent worker configuration changes.",
+    },
+}
+
+SCENARIO_MEMORY_PRESSURE: Dict[str, Any] = {
+    "name": "memory-pressure",
+    "keywords": ["memory", "leak", "oom", "heap", "gc pause", "rss"],
+    "logs": [
+        {
+            "timestamp": "2026-10-08T20:20:00Z",
+            "level": "ERROR",
+            "service": "analytics-service",
+            "message": "Fatal process error: java.lang.OutOfMemoryError: Java heap space during buffer allocation",
+            "context": {"heap_used_mb": 4096, "heap_max_mb": 4096},
+        },
+        {
+            "timestamp": "2026-10-08T20:20:12Z",
+            "level": "WARN",
+            "service": "analytics-service",
+            "message": "Prolonged GC pause detected: full garbage collection stopped the world for 14200ms",
+            "context": {"gc_pause_ms": 14200},
+        },
+    ],
+    "health": {
+        "status": "critical",
+        "service": "analytics-service",
+        "healthy": False,
+        "checks": {
+            "memory-headroom": {"status": "critical", "message": "Heap utilization 99.2%"},
+            "http-endpoint": {"status": "degraded", "latency_ms": 14500},
+        },
+        "summary": "Service experiencing severe memory pressure and frequent out-of-memory crashes",
+    },
+    "database": {
+        "status": "healthy",
+        "database_name": "analytics_db",
+        "active_connections": 10,
+        "max_connections": 100,
+        "pool_utilization": 0.10,
+        "waiting_queries": 0,
+        "slow_queries_count": 0,
+        "summary": "Database healthy.",
+    },
+    "metrics": {
+        "service": "analytics-service",
+        "error_rate": 0.72,
+        "latency_p99_ms": 14500,
+        "latency_p50_ms": 820,
+        "cpu_utilization": 0.42,
+        "memory_utilization": 0.99,
+        "summary": "Memory utilization saturated at 99%; severe GC pauses driving P99 latency to 14.5s.",
+    },
+    "deployment": [
+        {
+            "service": "analytics-service",
+            "version": "v3.0.1",
+            "deployed_at": "2026-10-05T12:00:00Z",
+            "status": "successful",
+            "commit": "3c9102f",
+        }
+    ],
+    "configuration": {
+        "service": "analytics-service",
+        "current": {"JVM_MAX_HEAP": "4g"},
+        "recent_changes": [],
+        "summary": "No recent configuration changes.",
+    },
+}
+
+SCENARIO_CACHE_FAILURE: Dict[str, Any] = {
+    "name": "cache-failure",
+    "keywords": ["cache", "redis", "memcached", "eviction", "miss rate"],
+    "logs": [
+        {
+            "timestamp": "2026-10-08T20:10:00Z",
+            "level": "ERROR",
+            "service": "catalog-service",
+            "message": "RedisConnectionException: Connection timed out to redis-cluster:6379 after 3000ms",
+            "context": {"target": "redis-cluster:6379"},
+        },
+        {
+            "timestamp": "2026-10-08T20:10:15Z",
+            "level": "WARN",
+            "service": "catalog-service",
+            "message": "Cache miss rate surged to 99.4%; falling back directly to primary database",
+            "context": {"miss_rate": 0.994},
+        },
+    ],
+    "health": {
+        "status": "degraded",
+        "service": "catalog-service",
+        "healthy": False,
+        "checks": {
+            "redis-cache": {"status": "failing", "message": "Cluster unreachable"},
+            "database": {"status": "degraded", "message": "Elevated load from cache bypass"},
+        },
+        "summary": "Cache cluster unreachable, triggering complete cache miss storm",
+    },
+    "database": {
+        "status": "degraded",
+        "database_name": "catalog_db",
+        "active_connections": 65,
+        "max_connections": 100,
+        "pool_utilization": 0.65,
+        "waiting_queries": 12,
+        "slow_queries_count": 18,
+        "summary": "Database load elevated due to upstream cache misses.",
+    },
+    "metrics": {
+        "service": "catalog-service",
+        "error_rate": 0.28,
+        "latency_p99_ms": 4200,
+        "latency_p50_ms": 450,
+        "cpu_utilization": 0.68,
+        "memory_utilization": 0.45,
+        "summary": "Cache cluster offline causing query storm on database and elevated response latency.",
+    },
+    "deployment": [
+        {
+            "service": "catalog-service",
+            "version": "v2.0.4",
+            "deployed_at": "2026-10-04T10:00:00Z",
+            "status": "successful",
+            "commit": "81ab22d",
+        }
+    ],
+    "configuration": {
+        "service": "catalog-service",
+        "current": {"REDIS_TIMEOUT_MS": "3000"},
+        "recent_changes": [],
+        "summary": "No configuration changes.",
+    },
+}
 
 ALL_SCENARIOS = [
     SCENARIO_PAYMENT_DB_POOL,
     SCENARIO_HIGH_LATENCY,
     SCENARIO_BAD_DEPLOYMENT,
     SCENARIO_AUTH_CONFIG,
+    SCENARIO_DEPENDENCY_LATENCY,
+    SCENARIO_QUEUE_BACKLOG,
+    SCENARIO_MEMORY_PRESSURE,
+    SCENARIO_CACHE_FAILURE,
+    SCENARIO_BASELINE_NORMAL,
 ]
 
 
 def match_scenario(title: str, description: str = "", service: str = "") -> Dict[str, Any]:
-    """Matches the most appropriate deterministic scenario based on incident context."""
+    """Matches deterministic regression scenario or returns baseline normal when no match found."""
     text = f"{title} {description} {service}".lower()
 
-    best_scenario = SCENARIO_PAYMENT_DB_POOL
+    best_scenario = SCENARIO_BASELINE_NORMAL
     best_score = 0
 
     for scenario in ALL_SCENARIOS:
-        score = sum(1 for kw in scenario["keywords"] if kw in text)
+        if scenario["name"] == "baseline-normal":
+            continue
+        score = sum(1 for kw in scenario.get("keywords", []) if kw in text)
         if score > best_score:
             best_score = score
             best_scenario = scenario
 
     return best_scenario
+
 

@@ -82,13 +82,29 @@ def create_plan_investigation_node(ctx: GraphNodeContext):
     return plan_investigation
 
 
+def _build_agent_context(state: InvestigationGraphState) -> Dict[str, Any]:
+    incident = state.get("incident")
+    opts = state.get("options") or {}
+    meta = incident.metadata or {}
+    return {
+        "title": incident.title,
+        "description": incident.description,
+        "service": incident.service,
+        "severity": incident.severity,
+        "symptoms": incident.symptoms,
+        **meta,
+        **opts,
+    }
+
+
 def create_collect_logs_node(ctx: GraphNodeContext):
     async def collect_logs(state: InvestigationGraphState) -> Dict[str, Any]:
         incident = state.get("incident")
+        context = _build_agent_context(state)
         res = await ctx.log_agent.run(
             investigation_id=state.get("investigationId"),
             service=incident.service or "service",
-            context={"title": incident.title, "description": incident.description, "service": incident.service},
+            context=context,
         )
         updates: Dict[str, Any] = {
             "evidence": res.get("evidence", []),
@@ -103,10 +119,11 @@ def create_collect_logs_node(ctx: GraphNodeContext):
 def create_collect_health_node(ctx: GraphNodeContext):
     async def collect_health(state: InvestigationGraphState) -> Dict[str, Any]:
         incident = state.get("incident")
+        context = _build_agent_context(state)
         res = await ctx.health_agent.run(
             investigation_id=state.get("investigationId"),
             service=incident.service or "service",
-            context={"title": incident.title, "description": incident.description, "service": incident.service},
+            context=context,
         )
         updates: Dict[str, Any] = {
             "evidence": res.get("evidence", []),
@@ -120,10 +137,10 @@ def create_collect_health_node(ctx: GraphNodeContext):
 
 def create_collect_database_node(ctx: GraphNodeContext):
     async def collect_database(state: InvestigationGraphState) -> Dict[str, Any]:
-        incident = state.get("incident")
+        context = _build_agent_context(state)
         res = await ctx.database_agent.run(
             investigation_id=state.get("investigationId"),
-            context={"title": incident.title, "description": incident.description, "service": incident.service},
+            context=context,
         )
         updates: Dict[str, Any] = {
             "evidence": res.get("evidence", []),
@@ -138,10 +155,11 @@ def create_collect_database_node(ctx: GraphNodeContext):
 def create_collect_metrics_node(ctx: GraphNodeContext):
     async def collect_metrics(state: InvestigationGraphState) -> Dict[str, Any]:
         incident = state.get("incident")
+        context = _build_agent_context(state)
         res = await ctx.metrics_agent.run(
             investigation_id=state.get("investigationId"),
             service=incident.service or "service",
-            context={"title": incident.title, "description": incident.description, "service": incident.service},
+            context=context,
         )
         updates: Dict[str, Any] = {
             "evidence": res.get("evidence", []),
@@ -156,10 +174,11 @@ def create_collect_metrics_node(ctx: GraphNodeContext):
 def create_collect_deployment_node(ctx: GraphNodeContext):
     async def collect_deployment(state: InvestigationGraphState) -> Dict[str, Any]:
         incident = state.get("incident")
+        context = _build_agent_context(state)
         res = await ctx.deployment_agent.run(
             investigation_id=state.get("investigationId"),
             service=incident.service or "service",
-            context={"title": incident.title, "description": incident.description, "service": incident.service},
+            context=context,
         )
         updates: Dict[str, Any] = {
             "evidence": res.get("evidence", []),
@@ -174,10 +193,11 @@ def create_collect_deployment_node(ctx: GraphNodeContext):
 def create_collect_configuration_node(ctx: GraphNodeContext):
     async def collect_configuration(state: InvestigationGraphState) -> Dict[str, Any]:
         incident = state.get("incident")
+        context = _build_agent_context(state)
         res = await ctx.config_agent.run(
             investigation_id=state.get("investigationId"),
             service=incident.service or "service",
-            context={"title": incident.title, "description": incident.description, "service": incident.service},
+            context=context,
         )
         updates: Dict[str, Any] = {
             "evidence": res.get("evidence", []),
@@ -193,7 +213,41 @@ def create_analyze_evidence_node(ctx: GraphNodeContext):
     async def analyze_evidence(state: InvestigationGraphState) -> Dict[str, Any]:
         evidence = state.get("evidence", [])
         logger.info(f"Analyzing {len(evidence)} evidence records")
-        return {}
+
+        synthesized_findings = []
+        for ev in evidence:
+            if ev.type.value == "LOG" and ev.metadata.get("error_count", 0) > 0:
+                synthesized_findings.append({
+                    "domain": "LOG",
+                    "observation": f"{ev.metadata['error_count']} error events captured in application logs",
+                    "severity": "HIGH",
+                })
+            elif ev.type.value == "METRIC" and ev.metadata.get("error_rate", 0) > 0.05:
+                synthesized_findings.append({
+                    "domain": "METRIC",
+                    "observation": f"Elevated 5xx error rate ({int(ev.metadata['error_rate'] * 100)}%) detected",
+                    "severity": "CRITICAL" if ev.metadata['error_rate'] > 0.5 else "HIGH",
+                })
+            elif ev.type.value == "DATABASE" and ev.metadata.get("pool_utilization", 0) > 0.8:
+                synthesized_findings.append({
+                    "domain": "DATABASE",
+                    "observation": f"Database connection pool near capacity ({int(ev.metadata['pool_utilization'] * 100)}%)",
+                    "severity": "CRITICAL",
+                })
+            elif ev.type.value == "DEPLOYMENT" and ev.metadata.get("deployment_count", 0) > 0:
+                synthesized_findings.append({
+                    "domain": "DEPLOYMENT",
+                    "observation": f"Recent release {ev.metadata.get('latest_version')} recorded in audit window",
+                    "severity": "MEDIUM",
+                })
+            elif ev.type.value == "CONFIGURATION" and ev.metadata.get("changes_count", 0) > 0:
+                synthesized_findings.append({
+                    "domain": "CONFIGURATION",
+                    "observation": f"{ev.metadata.get('changes_count')} configuration parameter updates detected",
+                    "severity": "MEDIUM",
+                })
+
+        return {"findings": synthesized_findings}
     return analyze_evidence
 
 

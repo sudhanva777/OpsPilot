@@ -109,37 +109,92 @@ The LLM is strictly prohibited from executing arbitrary shell commands, raw file
 
 ---
 
-## 6. Provider Abstraction & V3 Extensibility
+## 6. Provider Abstraction & Pluggable Evidence Model
 
 To avoid throwaway architecture, all telemetry collection relies on abstract interfaces:
 ```python
-LogProvider               -> SimulatedLogProvider           (V3: CloudWatch / Loki)
-HealthProvider            -> SimulatedHealthProvider        (V3: Kubernetes / Docker)
-DatabaseProvider          -> SimulatedDatabaseProvider      (V3: PostgreSQL pg_stat_activity)
+LogProvider               -> SimulatedLogProvider           (V3: CloudWatch / Loki / OpenTelemetry)
+HealthProvider            -> SimulatedHealthProvider        (V3: Kubernetes / Docker / Consul)
+DatabaseProvider          -> SimulatedDatabaseProvider      (V3: PostgreSQL pg_stat_activity / MySQL)
 MetricsProvider           -> SimulatedMetricsProvider       (V3: Prometheus / Datadog)
-DeploymentProvider        -> SimulatedDeploymentProvider    (V3: GitHub Actions / ArgoCD)
-ConfigurationProvider     -> SimulatedConfigurationProvider (V3: AWS AppConfig / Vault)
+DeploymentProvider        -> SimulatedDeploymentProvider    (V3: GitHub Actions / ArgoCD / GitLab)
+ConfigurationProvider     -> SimulatedConfigurationProvider (V3: AWS AppConfig / Vault / Consul)
 ```
 
-In V2, high-fidelity deterministic fixtures simulate four real-world production incident scenarios:
-1. **Payment Failure**: Connection pool exhaustion in payment-service causing cascading HTTP 500 errors.
-2. **High Latency**: Missing database index causing sequential table scans and thread pool starvation.
-3. **Bad Deployment**: Null pointer exception introduced in release `v2.4.1` causing immediate 5xx error spikes.
-4. **Auth Configuration Mismatch**: JWT audience modified in gateway configuration rejecting client tokens with 401 Unauthorized.
+The investigation engine depends strictly on **provider contracts and evidence schemas**, never on scenario fixtures or hardcoded scenario IDs. Providers supply raw evidence describing reality; the reasoning engine interprets observations independently.
 
 ---
 
-## 7. Future Remediation Contract (V3/V4)
+## 7. Evidence-First Reasoning & Separation of Concerns
+
+The generalized OpsPilot V2 engine enforces strict separation across analytical phases:
+```text
+Provider Telemetry
+       ↓
+Raw Evidence Items (Describing Observations)
+       ↓
+Evidence Normalization
+       ↓
+Finding Extraction (Interpreted observations with severity)
+       ↓
+Dynamic Competing Hypotheses Generation (Open-ended, service-agnostic)
+       ↓
+Hypothesis Evaluation (Supporting vs Contradicting evidence IDs)
+       ↓
+Root Cause Determination & Attribution
+       ↓
+Confidence Calculation & Factor Penalties (Missing evidence penalty)
+       ↓
+Remediation Recommendation Formulation (Approval-gated)
+```
+
+### Key Generalization Guarantees:
+1. **Zero Scenario-Based RCA**: No `if scenario == ...` conditionals exist in production code. Conclusions emerge entirely from evidence signals.
+2. **Open-Ended Hypotheses**: The system investigates arbitrary failure modes (downstream dependency latency, queue backlogs, memory pressure/OOM, Redis cache failure, network transport degradation, configuration drift, database pool exhaustion, query contention, deployment regressions).
+3. **Cross-Service Attribution**: Separates symptom service (e.g., `api-gateway` returning 504) from root-cause service (e.g., `auth-service` or `inventory-service` latency).
+4. **Temporal Correlation**: Directly cross-references deployment and configuration change timestamps against error onset timestamps. If degradation began before a release, the deployment hypothesis is actively rejected.
+5. **Missing Evidence & Uncertainty Handling**: If telemetry domains are missing or unavailable, the engine applies confidence penalties and records limitations rather than fabricating certainty. For healthy or non-anomalous systems, the engine returns `INCONCLUSIVE` (confidence < 0.50).
+6. **Dual Reasoning Layers**: Full Groq LLM inference with automated, deterministic algorithmic fallback guaranteeing complete reliability under API outages.
+
+---
+
+## 8. Test Matrix & Validation Scenarios
+
+The test suite validates both deterministic regression scenarios and novel, unprompted failure modes:
+
+| Test / Scenario | Failure Mode | Validation Objective |
+| :--- | :--- | :--- |
+| **Acceptance Test 1** | Downstream dependency latency (`inventory-service`) | Proves conclusion emerges from evidence without pre-existing fixture. |
+| **Acceptance Test 2** | Queue backlog (`worker-service`, depth 2,000,000) | Identifies consumer processing bottleneck without queue scenario name. |
+| **Acceptance Test 3** | External dependency latency (`search-cluster`) | Isolates 5s external API latency from normal CPU/memory. |
+| **Anti-Hardcoding** | Incident title perturbation | Identical evidence yields equivalent RCA regardless of incident naming. |
+| **Evidence Perturbation** | Deployment vs Database evidence swap | Directly alters root cause when evidence changes. |
+| **Conflicting Timing** | Degradation started before deployment | Temporal contradiction engine rejects deployment regression hypothesis. |
+| **Missing Evidence** | Unavailable metrics and deployment providers | Applies missing domain penalties and notes limitations. |
+| **Inconclusive Baseline** | Nominal operating telemetry | Returns `INCONCLUSIVE` (confidence < 0.50) without fabricating false causes. |
+| **Memory Pressure** | ETL worker heap saturation (98% memory, GC pause) | Identifies memory exhaustion and recommends heap profile. |
+| **Cache Failure** | Redis cluster connection refused | Identifies cache unavailability and database read pressure. |
+| **Network Degradation** | DNS timeouts and transport resets | Detects transport degradation and recommends DNS resolver audit. |
+| **Configuration Drift** | Secret rotation mismatch (`AUTH_AUDIENCE_URL`) | Identifies configuration incompatibility and token rejection. |
+| **Multiple Causes** | Competing database and dependency signals | Returns `ROOT_CAUSE_LIKELY` with bounded confidence (<= 0.75). |
+| **Cross-Service** | Ingress gateway 504 due to auth-service | Distinguishes symptom service from root cause service. |
+| **LLM Failure Resilience** | Upstream Groq connection reset | Seamlessly falls back to algorithmic engine without crashing. |
+| **Regression Scenarios** | Payment failure, Bad deploy, High latency, Auth | Preserves 100% backward compatibility with V2 demo fixtures. |
+
+---
+
+## 9. Future Remediation Contract (V3/V4)
 
 Even though V2 does not execute remediation, recommendations conform to future execution contracts:
 ```json
 {
-  "action": "increase_database_connection_capacity",
-  "reason": "All 50 available pool connections exhausted.",
+  "action": "Scale database connection pool capacity and investigate active connection leaks for payment-service",
+  "reason": "Database connection pool reached saturation (100% capacity) with 142 queued queries.",
   "riskLevel": "HIGH",
-  "confidence": 0.93,
+  "confidence": 0.88,
   "requiresApproval": true,
   "remediationExecuted": false
 }
 ```
 In V3/V4, this structured contract feeds into the human approval gateway and remediation runner.
+

@@ -19,6 +19,7 @@ class InvestigationGraphState(TypedDict, total=False):
     investigationId: str
     incidentId: str
     incident: IncidentContext
+    options: Dict[str, Any]
 
     # Plan & Execution State
     plan: List[str]
@@ -35,5 +36,6 @@ class InvestigationGraphState(TypedDict, total=False):
     rootCause: Optional[str]
     confidence: Optional[float]
     confidenceFactors: List[str]
+    _raw_rec: Optional[Dict[str, Any]]
     recommendation: Optional[RecommendationItem]
     summary: Optional[str]

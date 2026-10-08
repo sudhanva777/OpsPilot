@@ -52,6 +52,7 @@ async def start_investigation(
             incident_id=payload.incidentId,
             incident=payload.incident,
             investigation_id=payload.investigationId,
+            options=payload.options,
         )
         return result
     except Exception as e:

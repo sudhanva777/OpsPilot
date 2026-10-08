@@ -52,6 +52,8 @@ class IncidentContext(BaseModel):
     severity: str = "HIGH"
     status: str = "OPEN"
     createdAt: Optional[datetime] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    symptoms: List[str] = Field(default_factory=list)
 
 
 # ─── Evidence ────────────────────────────────────────────────────────────────
@@ -129,6 +131,7 @@ class InvestigationResponse(BaseModel):
     startedAt: datetime
     completedAt: Optional[datetime] = None
     evidence: List[EvidenceItem] = Field(default_factory=list)
+    findings: List[Dict[str, Any]] = Field(default_factory=list)
     hypotheses: List[HypothesisItem] = Field(default_factory=list)
     recommendation: Optional[RecommendationItem] = None
     agentRuns: List[AgentRunItem] = Field(default_factory=list)

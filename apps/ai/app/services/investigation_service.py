@@ -42,6 +42,7 @@ class InvestigationService:
         incident_id: str,
         incident: IncidentContext,
         investigation_id: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
     ) -> InvestigationResponse:
         inv_id = investigation_id or f"inv-{uuid.uuid4().hex[:12]}"
         started_at = datetime.utcnow()
@@ -52,6 +53,7 @@ class InvestigationService:
             "investigationId": inv_id,
             "incidentId": incident_id,
             "incident": incident,
+            "options": options or {},
             "plan": [],
             "status": InvestigationStatus.PENDING,
             "errors": [],
@@ -95,6 +97,7 @@ class InvestigationService:
                 startedAt=started_at,
                 completedAt=completed_at,
                 evidence=final_state.get("evidence", []),
+                findings=final_state.get("findings", []),
                 hypotheses=final_state.get("hypotheses", []),
                 recommendation=final_state.get("recommendation"),
                 agentRuns=final_state.get("agentResults", []),
