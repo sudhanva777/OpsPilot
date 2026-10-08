@@ -99,6 +99,8 @@ This prevents IDOR vulnerabilities by never trusting client-provided project own
 
 ### Component Hierarchy
 
+See [docs/frontend.md](file:///c:/sudhanva%20patil%20U/OpsPilot%20Agent/docs/frontend.md) for full design system and UI specifications.
+
 ```text
 App
 ├── QueryClientProvider (TanStack Query)
@@ -107,11 +109,12 @@ App
     ├── /login → LoginPage
     ├── /register → RegisterPage
     └── ProtectedRoute
-        └── AppLayout (sidebar + content)
-            ├── /dashboard → DashboardPage
-            ├── /projects → ProjectsPage
-            ├── /projects/:id → ProjectDetailPage
-            └── /incidents/:id → IncidentDetailPage
+        └── AppLayout (collapsible sidebar + topbar + command palette)
+            ├── /dashboard → DashboardPage (system health & operations overview)
+            ├── /incidents → IncidentsPage (global incident triage & filtering)
+            ├── /incidents/:id → IncidentDetailPage (flagship SRE control room)
+            ├── /projects → ProjectsPage (project catalog)
+            └── /projects/:id → ProjectDetailPage (project telemetry & incidents)
 ```
 
 ### Data Flow
