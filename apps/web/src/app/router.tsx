@@ -8,6 +8,8 @@ import ProjectsPage from '../pages/ProjectsPage';
 import ProjectDetailPage from '../pages/ProjectDetailPage';
 import IncidentDetailPage from '../pages/IncidentDetailPage';
 
+import IncidentsPage from '../pages/IncidentsPage';
+
 export const router = createBrowserRouter([
   // ─── Public routes ──────────────────────────────────────────────────────
   {
@@ -35,6 +37,10 @@ export const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: <DashboardPage />,
+      },
+      {
+        path: 'incidents',
+        element: <IncidentsPage />,
       },
       {
         path: 'projects',

@@ -67,6 +67,13 @@ export interface AgentRun {
   createdAt: string;
 }
 
+export interface InvestigationFinding {
+  domain: string;
+  observation: string;
+  severity?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface Investigation {
   id: string;
   incidentId: string;
@@ -81,6 +88,7 @@ export interface Investigation {
   createdAt: string;
   updatedAt: string;
   evidence?: InvestigationEvidence[];
+  findings?: InvestigationFinding[];
   hypotheses?: InvestigationHypothesis[];
   recommendation?: InvestigationRecommendation | null;
   agentRuns?: AgentRun[];

@@ -1,86 +1,58 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useState } from 'react';
+import { Outlet } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Sidebar } from './Sidebar';
+import { Topbar } from './Topbar';
+import { CommandPalette } from './CommandPalette';
+import { projectsApi } from '../../services/api/projectsApi';
+import { incidentsApi } from '../../services/api/incidentsApi';
 
-/**
- * AppLayout — the authenticated application shell.
- * Fixed sidebar + scrollable main content area.
- *
- * ┌──────────────────────────────────────────────┐
- * │ ⚡ OpsPilot                                  │
- * ├────────────┬─────────────────────────────────┤
- * │ Dashboard  │                                 │
- * │ Projects   │        <Outlet />               │
- * │            │                                 │
- * ├────────────┤                                 │
- * │ User Info  │                                 │
- * │ [Logout]   │                                 │
- * └────────────┴─────────────────────────────────┘
- */
 export default function AppLayout() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
+  // Fetch projects to load global incidents
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: projectsApi.list,
+  });
 
-  const initials = user?.name
-    ? user.name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .toUpperCase()
-        .slice(0, 2)
-    : '??';
+  const { data: allIncidents = [] } = useQuery({
+    queryKey: ['dashboard-incidents', projects.map((p) => p.id)],
+    queryFn: async () => {
+      if (projects.length === 0) return [];
+      const results = await Promise.all(
+        projects.map((p) => incidentsApi.listForProject(p.id)),
+      );
+      return results.flat();
+    },
+    enabled: projects.length > 0,
+    refetchInterval: 10_000,
+  });
 
   return (
     <div className="app-layout">
-      <aside className="sidebar">
-        {/* Brand */}
-        <div className="sidebar-brand">
-          <div className="sidebar-brand-icon">⚡</div>
-          <h1>OpsPilot</h1>
-        </div>
+      <Sidebar
+        collapsed={collapsed}
+        onToggleCollapse={() => setCollapsed(!collapsed)}
+        incidents={allIncidents}
+      />
 
-        {/* Navigation */}
-        <nav className="sidebar-nav">
-          <NavLink
-            to="/dashboard"
-            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-          >
-            📊 Dashboard
-          </NavLink>
-          <NavLink
-            to="/projects"
-            className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}
-          >
-            📁 Projects
-          </NavLink>
-        </nav>
+      <Topbar
+        collapsed={collapsed}
+        onOpenCommandPalette={() => setCmdOpen(true)}
+        incidents={allIncidents}
+      />
 
-        {/* Footer / User */}
-        <div className="sidebar-footer">
-          <div className="sidebar-user">
-            <div className="sidebar-user-avatar">{initials}</div>
-            <div className="sidebar-user-info">
-              <div className="sidebar-user-name">{user?.name}</div>
-              <div className="sidebar-user-email">{user?.email}</div>
-            </div>
-          </div>
-          <button
-            className="btn btn-secondary btn-sm"
-            style={{ width: '100%', marginTop: '8px' }}
-            onClick={handleLogout}
-          >
-            Sign Out
-          </button>
-        </div>
-      </aside>
-
-      <main className="main-content">
+      <main className={`main-content ${collapsed ? 'sidebar-collapsed' : ''}`}>
         <Outlet />
       </main>
+
+      <CommandPalette
+        isOpen={cmdOpen}
+        onClose={() => setCmdOpen(false)}
+        incidents={allIncidents}
+      />
     </div>
   );
 }

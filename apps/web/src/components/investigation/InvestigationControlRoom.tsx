@@ -2,7 +2,24 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { investigationsApi } from '../../services/api/investigationsApi';
 import type { Incident } from '../../types';
-import { formatDate, timeAgo } from '../../utils';
+import { timeAgo } from '../../utils';
+import { InvestigationPipelineTracker } from './InvestigationPipelineTracker';
+import { RootCausePanel } from './RootCausePanel';
+import { HypothesisComparison } from './HypothesisComparison';
+import { FindingsList } from './FindingsList';
+import { EvidenceExplorer } from './EvidenceExplorer';
+import { RecommendationPanel } from './RecommendationPanel';
+import {
+  Zap,
+  Activity,
+  Layers,
+  FileText,
+  ShieldCheck,
+  Cpu,
+  CheckCircle2,
+  AlertOctagon,
+  Clock,
+} from 'lucide-react';
 
 interface Props {
   incident: Incident;
@@ -11,15 +28,13 @@ interface Props {
 export const InvestigationControlRoom: React.FC<Props> = ({ incident }) => {
   const queryClient = useQueryClient();
   const [selectedInvId, setSelectedInvId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'evidence' | 'hypotheses' | 'runs'>('evidence');
-  const [evidenceFilter, setEvidenceFilter] = useState<string>('ALL');
+  const [activeTab, setActiveTab] = useState<'hypotheses' | 'findings' | 'evidence' | 'recommendation' | 'runs'>('hypotheses');
 
   // Fetch list of investigations for this incident
   const { data: investigations = [] } = useQuery({
     queryKey: ['incident-investigations', incident.id],
     queryFn: () => investigationsApi.listForIncident(incident.id),
     refetchInterval: (query) => {
-      // Poll every 2 seconds if any investigation is running
       const running = query.state.data?.some(
         (inv) => inv.status === 'RUNNING' || inv.status === 'PENDING',
       );
@@ -27,7 +42,6 @@ export const InvestigationControlRoom: React.FC<Props> = ({ incident }) => {
     },
   });
 
-  // Current active investigation (selected or latest)
   const currentInvestigationId =
     selectedInvId || (investigations.length > 0 ? investigations[0].id : null);
 
@@ -36,7 +50,6 @@ export const InvestigationControlRoom: React.FC<Props> = ({ incident }) => {
     queryKey: ['investigation-detail', currentInvestigationId],
     queryFn: () => investigationsApi.getById(currentInvestigationId!),
     enabled: !!currentInvestigationId,
-
     refetchInterval: (query) => {
       return query.state.data?.status === 'RUNNING' ? 2000 : false;
     },
@@ -61,62 +74,73 @@ export const InvestigationControlRoom: React.FC<Props> = ({ incident }) => {
     activeInvestigation?.status === 'RUNNING' ||
     activeInvestigation?.status === 'PENDING';
 
-  // Evidence filtering
   const evidenceList = activeInvestigation?.evidence || [];
-  const filteredEvidence =
-    evidenceFilter === 'ALL'
-      ? evidenceList
-      : evidenceList.filter((e) => e.type === evidenceFilter);
+  const hypothesesList = activeInvestigation?.hypotheses || [];
+  const findingsList = activeInvestigation?.findings || [];
+  const agentRuns = activeInvestigation?.agentRuns || [];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'COMPLETED':
-        return <span className="inv-badge inv-badge-success">✓ Completed</span>;
+        return (
+          <span className="badge badge-low">
+            <CheckCircle2 size={12} />
+            <span>Completed</span>
+          </span>
+        );
       case 'RUNNING':
-        return <span className="inv-badge inv-badge-running">⚡ Running Agents</span>;
+        return (
+          <span className="badge badge-investigating" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span className="radar-pulse-dot" style={{ width: 6, height: 6 }} />
+            <span>Analyzing Telemetry...</span>
+          </span>
+        );
       case 'FAILED':
-        return <span className="inv-badge inv-badge-failed">✗ Failed</span>;
+        return (
+          <span className="badge badge-critical">
+            <AlertOctagon size={12} />
+            <span>Failed</span>
+          </span>
+        );
       case 'PENDING':
-        return <span className="inv-badge inv-badge-pending">⏳ Pending</span>;
+        return (
+          <span className="badge badge-medium">
+            <Clock size={12} />
+            <span>Queued</span>
+          </span>
+        );
       default:
-        return <span className="inv-badge">{status}</span>;
-    }
-  };
-
-  const getRiskBadge = (risk: string) => {
-    switch (risk) {
-      case 'CRITICAL':
-        return <span className="badge badge-critical">CRITICAL RISK</span>;
-      case 'HIGH':
-        return <span className="badge badge-high">HIGH RISK</span>;
-      case 'MEDIUM':
-        return <span className="badge badge-medium">MEDIUM RISK</span>;
-      default:
-        return <span className="badge badge-low">LOW RISK</span>;
+        return <span className="badge">{status}</span>;
     }
   };
 
   return (
     <div className="control-room-card">
-      {/* Control Room Header */}
+      {/* Header */}
       <div className="control-room-header">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '1.25rem' }}>🤖</span>
-            <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>
-              AI Investigation Control Room
-            </h2>
+        <div className="control-room-title-area">
+          <div className="control-room-title-row">
+            <div className="radar-pulse-dot" />
+            <span className="control-room-title">AI Investigation Control Room</span>
             {activeInvestigation && getStatusBadge(activeInvestigation.status)}
           </div>
-          <p style={{ margin: '4px 0 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Autonomous evidence collection across logs, metrics, health, databases, deployments & configuration.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           {investigations.length > 1 && (
             <select
-              className="inv-history-select"
+              className="cmd-palette-input"
+              style={{
+                fontSize: '0.8rem',
+                padding: '6px 10px',
+                background: 'var(--bg-tertiary)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-primary)',
+                color: 'var(--text-primary)',
+              }}
               value={currentInvestigationId || ''}
               onChange={(e) => setSelectedInvId(e.target.value)}
             >
@@ -132,16 +156,15 @@ export const InvestigationControlRoom: React.FC<Props> = ({ incident }) => {
             className="btn btn-primary"
             disabled={isRunning}
             onClick={() => startMutation.mutate()}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             {isRunning ? (
               <>
-                <div className="spinner-sm" />
-                <span>Investigating Telemetry...</span>
+                <span className="radar-pulse-dot" style={{ width: 7, height: 7 }} />
+                <span>Running Telemetry Agents...</span>
               </>
             ) : (
               <>
-                <span>⚡</span>
+                <Zap size={14} />
                 <span>{investigations.length > 0 ? 'Rerun Investigation' : 'Start AI Investigation'}</span>
               </>
             )}
@@ -149,294 +172,128 @@ export const InvestigationControlRoom: React.FC<Props> = ({ incident }) => {
         </div>
       </div>
 
-      {startMutation.isError && (
-        <div className="inv-alert inv-alert-danger" style={{ marginTop: '16px' }}>
-          <strong>Investigation Dispatch Failed:</strong>{' '}
-          {(startMutation.error as any)?.response?.data?.message ||
-            (startMutation.error as any)?.message ||
-            'Unable to communicate with AI investigation service.'}
-        </div>
+      {/* Investigation Pipeline Tracker */}
+      {activeInvestigation && (
+        <InvestigationPipelineTracker status={activeInvestigation.status} />
       )}
 
-      {/* When no investigation has been run yet */}
-      {investigations.length === 0 && !isRunning && (
-        <div className="inv-empty-state">
-          <div style={{ fontSize: '2.5rem', marginBottom: '8px' }}>🔍</div>
-          <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem' }}>No AI Investigation Executed Yet</h3>
-          <p style={{ margin: 0, color: 'var(--text-muted)', maxWidth: '480px', fontSize: '0.9rem' }}>
-            OpsPilot can autonomously collect multi-domain telemetry, generate competing hypotheses,
-            and formulate evidence-backed root cause analysis for this incident.
-          </p>
+      {/* Root Cause Panel */}
+      {activeInvestigation?.rootCause && (
+        <RootCausePanel
+          rootCause={activeInvestigation.rootCause}
+          confidence={activeInvestigation.confidence}
+          confidenceFactors={activeInvestigation.confidenceFactors}
+          summary={activeInvestigation.summary}
+          supportingCount={evidenceList.length}
+          contradictingCount={hypothesesList.filter((h) => h.status === 'REJECTED').length}
+        />
+      )}
+
+      {/* Control Room Navigation Tabs */}
+      <div className="inv-tabs-container" style={{ margin: 'var(--space-md) var(--space-lg) var(--space-lg) var(--space-lg)' }}>
+        <div className="inv-tabs-header">
           <button
-            className="btn btn-primary"
-            style={{ marginTop: '16px' }}
-            onClick={() => startMutation.mutate()}
+            className={`inv-tab-btn ${activeTab === 'hypotheses' ? 'active' : ''}`}
+            onClick={() => setActiveTab('hypotheses')}
           >
-            ⚡ Launch Investigation
+            <Activity size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} />
+            Hypotheses Comparison ({hypothesesList.length})
+          </button>
+
+          <button
+            className={`inv-tab-btn ${activeTab === 'findings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('findings')}
+          >
+            <Layers size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} />
+            Synthesized Findings ({findingsList.length})
+          </button>
+
+          <button
+            className={`inv-tab-btn ${activeTab === 'evidence' ? 'active' : ''}`}
+            onClick={() => setActiveTab('evidence')}
+          >
+            <FileText size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} />
+            Evidence Explorer ({evidenceList.length})
+          </button>
+
+          <button
+            className={`inv-tab-btn ${activeTab === 'recommendation' ? 'active' : ''}`}
+            onClick={() => setActiveTab('recommendation')}
+          >
+            <ShieldCheck size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} />
+            Mitigation Recommendation
+          </button>
+
+          <button
+            className={`inv-tab-btn ${activeTab === 'runs' ? 'active' : ''}`}
+            onClick={() => setActiveTab('runs')}
+          >
+            <Cpu size={14} style={{ marginRight: '6px', verticalAlign: '-2px' }} />
+            Agent Runs ({agentRuns.length})
           </button>
         </div>
-      )}
 
-      {/* Active Running State */}
-      {isRunning && (
-        <div className="inv-running-banner">
-          <div className="radar-pulse-ring" />
-          <div>
-            <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>
-              LangGraph Orchestration in Progress
-            </div>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Executing 6 parallel evidence agents: LogAgent, HealthAgent, DatabaseAgent, MetricsAgent, DeploymentAgent, ConfigurationAgent...
-            </div>
-          </div>
-        </div>
-      )}
+        <div className="inv-tab-body">
+          {activeTab === 'hypotheses' && (
+            <HypothesisComparison hypotheses={hypothesesList} />
+          )}
 
-      {/* Investigation Results Display */}
-      {activeInvestigation && activeInvestigation.status !== 'RUNNING' && (
-        <div style={{ marginTop: '20px' }}>
-          {/* Top Hero Grid: RCA + Recommendation */}
-          <div className="inv-hero-grid">
-            {/* Root Cause Card */}
-            <div className="inv-rca-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <span className="inv-card-kicker">ROOT CAUSE ANALYSIS</span>
-                {activeInvestigation.confidence !== null && (
-                  <div className="confidence-pill">
-                    <span className="confidence-value">
-                      {Math.round(activeInvestigation.confidence * 100)}%
-                    </span>
-                    <span className="confidence-label">Confidence</span>
-                  </div>
-                )}
-              </div>
+          {activeTab === 'findings' && (
+            <FindingsList findings={findingsList} />
+          )}
 
-              <h3 className="inv-rca-title">
-                {activeInvestigation.rootCause || 'Root cause under investigation'}
-              </h3>
+          {activeTab === 'evidence' && (
+            <EvidenceExplorer evidence={evidenceList} />
+          )}
 
-              {activeInvestigation.summary && (
-                <p className="inv-rca-summary">{activeInvestigation.summary}</p>
-              )}
+          {activeTab === 'recommendation' && (
+            <RecommendationPanel recommendation={activeInvestigation?.recommendation} />
+          )}
 
-              {/* Confidence Factors / Why Breakdown */}
-              {activeInvestigation.confidenceFactors?.length > 0 && (
-                <div style={{ marginTop: '14px' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '6px' }}>
-                    Telemetry Correlation Factors:
-                  </div>
-                  <ul className="confidence-factors-list">
-                    {activeInvestigation.confidenceFactors.map((factor, idx) => (
-                      <li key={idx}>
-                        <span style={{ color: '#10b981', marginRight: '6px' }}>✓</span>
-                        {factor}
-                      </li>
-                    ))}
-                  </ul>
+          {activeTab === 'runs' && (
+            <div>
+              {agentRuns.length === 0 ? (
+                <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  No agent execution records available.
                 </div>
-              )}
-            </div>
-
-            {/* Recommendation Card */}
-            {activeInvestigation.recommendation && (
-              <div className="inv-rec-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="inv-card-kicker">RECOMMENDED REMEDIATION</span>
-                  {getRiskBadge(activeInvestigation.recommendation.riskLevel)}
-                </div>
-
-                <h4 className="inv-rec-action">
-                  {activeInvestigation.recommendation.action}
-                </h4>
-
-                <p className="inv-rec-reason">
-                  {activeInvestigation.recommendation.reason}
-                </p>
-
-                {activeInvestigation.recommendation.mitigationSteps?.length > 0 && (
-                  <div style={{ marginTop: '12px' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      Recommended Steps:
-                    </div>
-                    <ol className="rec-steps-list">
-                      {activeInvestigation.recommendation.mitigationSteps.map((step, idx) => (
-                        <li key={idx}>{step}</li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-
-                {/* Remediation Safety Guardrail Indicator */}
-                <div className="safeguard-banner">
-                  <span style={{ fontSize: '1.1rem' }}>🛡️</span>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.8rem', color: '#f59e0b' }}>
-                      Production Safeguard Active
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      No automated remediation was executed. Human authorization required before applying changes.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Telemetry Tabs: Evidence / Hypotheses / Agent Runs */}
-          <div className="inv-tabs-container">
-            <div className="inv-tabs-header">
-              <button
-                className={`inv-tab-btn ${activeTab === 'evidence' ? 'active' : ''}`}
-                onClick={() => setActiveTab('evidence')}
-              >
-                📊 Collected Evidence ({activeInvestigation.evidence?.length || 0})
-              </button>
-              <button
-                className={`inv-tab-btn ${activeTab === 'hypotheses' ? 'active' : ''}`}
-                onClick={() => setActiveTab('hypotheses')}
-              >
-                🔬 Evaluated Hypotheses ({activeInvestigation.hypotheses?.length || 0})
-              </button>
-              <button
-                className={`inv-tab-btn ${activeTab === 'runs' ? 'active' : ''}`}
-                onClick={() => setActiveTab('runs')}
-              >
-                ⚙️ Agent Execution Log ({activeInvestigation.agentRuns?.length || 0})
-              </button>
-            </div>
-
-            {/* TAB 1: Evidence Explorer */}
-            {activeTab === 'evidence' && (
-              <div className="inv-tab-body">
-                {/* Filter tags */}
-                <div className="evidence-filter-bar">
-                  {['ALL', 'LOG', 'HEALTH', 'DATABASE', 'METRIC', 'DEPLOYMENT', 'CONFIGURATION'].map(
-                    (filter) => (
-                      <button
-                        key={filter}
-                        className={`filter-chip ${evidenceFilter === filter ? 'active' : ''}`}
-                        onClick={() => setEvidenceFilter(filter)}
-                      >
-                        {filter}
-                      </button>
-                    ),
-                  )}
-                </div>
-
-                {filteredEvidence.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', padding: '16px', textAlign: 'center' }}>
-                    No evidence records matching filter "{evidenceFilter}".
-                  </p>
-                ) : (
-                  <div className="evidence-grid">
-                    {filteredEvidence.map((ev) => (
-                      <div key={ev.id} className="evidence-item-card">
-                        <div className="evidence-item-header">
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span className={`evidence-type-badge type-${ev.type.toLowerCase()}`}>
-                              {ev.type}
-                            </span>
-                            <span className="evidence-title">{ev.title}</span>
-                          </div>
-                          <span className="evidence-timestamp">
-                            {formatDate(ev.collectedAt)}
-                          </span>
-                        </div>
-
-                        <div className="evidence-source">
-                          Source: <code>{ev.source}</code>
-                        </div>
-
-                        <pre className="evidence-content-pre">
-                          {ev.content}
-                        </pre>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* TAB 2: Hypotheses Engine */}
-            {activeTab === 'hypotheses' && (
-              <div className="inv-tab-body">
-                <div className="hypotheses-list">
-                  {activeInvestigation.hypotheses?.map((h) => {
-                    const isSupported = h.status === 'SUPPORTED';
-                    return (
-                      <div
-                        key={h.id}
-                        className={`hypothesis-card ${isSupported ? 'hypothesis-supported' : 'hypothesis-rejected'}`}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span
-                              className={`hyp-status-badge ${isSupported ? 'badge-supported' : 'badge-rejected'}`}
-                            >
-                              {isSupported ? '✓ SUPPORTED' : '✗ REJECTED'}
-                            </span>
-                            <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>
-                              {h.description}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                            {Math.round(h.confidence * 100)}% Match
-                          </span>
-                        </div>
-
-                        <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          {h.reasoning}
-                        </p>
-
-                        {h.supportingEvidenceIds?.length > 0 && (
-                          <div style={{ marginTop: '8px', fontSize: '0.75rem' }}>
-                            <span style={{ color: '#10b981', fontWeight: 600 }}>Supporting Evidence: </span>
-                            {h.supportingEvidenceIds.join(', ')}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: Agent Execution Runs */}
-            {activeTab === 'runs' && (
-              <div className="inv-tab-body">
+              ) : (
                 <table className="inv-runs-table">
                   <thead>
                     <tr>
-                      <th>Agent</th>
+                      <th>Agent Role</th>
                       <th>Status</th>
                       <th>Duration</th>
                       <th>Execution Summary</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {activeInvestigation.agentRuns?.map((run, idx) => (
-                      <tr key={run.id || idx}>
-                        <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{run.agent}</td>
+                    {agentRuns.map((run) => (
+                      <tr key={run.id}>
                         <td>
-                          <span
-                            className={`inv-badge ${run.status === 'COMPLETED' ? 'inv-badge-success' : 'inv-badge-failed'}`}
-                          >
+                          <span style={{ fontWeight: 600, fontFamily: 'var(--font-mono)', fontSize: '0.82rem', color: 'var(--brand-primary)' }}>
+                            {run.agent}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge ${run.status === 'COMPLETED' ? 'badge-low' : 'badge-investigating'}`}>
                             {run.status}
                           </span>
                         </td>
-                        <td>{run.durationMs !== null ? `${run.durationMs}ms` : '—'}</td>
-                        <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                          {run.outputSummary || run.inputSummary || '—'}
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          {run.durationMs !== null ? `${run.durationMs}ms` : '—'}
+                        </td>
+                        <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                          {run.outputSummary || run.inputSummary || 'Processed'}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 };
