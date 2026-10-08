@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: opspilot-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: opspilot
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d opspilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ai:
+    build:
+      context: ./apps/ai
+      dockerfile: Dockerfile
+    container_name: opspilot-ai
+    environment:
+      PORT: 8000
+      ENVIRONMENT: development
+      INTERNAL_API_KEY: dev-internal-secret-key
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      CORS_ORIGIN: http://localhost:3001
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: opspilot-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/opspilot
+      JWT_SECRET: dev-jwt-super-secret-key-replace-in-prod
+      JWT_EXPIRES_IN: 7d
+      CORS_ORIGIN: http://localhost:5173
+      AI_SERVICE_URL: http://ai:8000
+      INTERNAL_API_KEY: dev-internal-secret-key
+    ports:
+      - "3001:3001"
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: opspilot-web
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres_data:

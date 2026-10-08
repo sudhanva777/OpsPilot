@@ -2,59 +2,58 @@
 
 > Autonomous Incident & Production Operations Platform
 
-OpsPilot is a production-grade incident management and operations platform designed for SRE teams and DevOps engineers. V1 provides the foundational layer — user authentication, project management, incident lifecycle management, and a professional control room UI.
+OpsPilot is a production-grade autonomous incident management and operations platform designed for SRE teams and DevOps engineers.
 
-**V1 is intentionally designed as the foundation for V2+**, which will introduce AI-powered investigation workflows, automated remediation, and post-incident reporting.
+- **V1 Foundation**: User authentication, project membership, incident state machines, event timelines, and dark-mode Control Room UI.
+- **V2 AI Investigation Engine**: Multi-domain telemetry collection, stateful LangGraph orchestration, specialized domain agents, competing hypotheses evaluation, evidence-backed RCA, and approval-gated remediation recommendations.
 
 ---
 
 ## Architecture
 
 ```text
-Browser (React + Vite)
-     ↓
-REST API (NestJS)
-     ↓
-PostgreSQL
-```
-
-### Backend Layers
-
-```text
-HTTP Request → Controller → DTO Validation → Service → Repository → PostgreSQL
-```
-
-### Domain Model
-
-```text
-User → Project Membership → Project → Incidents → Incident Events
-                                                 → Audit Logs
+React Control Room (apps/web)
+             ↓
+NestJS Product API (apps/api)
+      ↓                   ↓
+PostgreSQL         FastAPI AI Service (apps/ai)
+                          ↓
+                   LangGraph Engine
+                          ↓
+               6 Specialized Domain Agents
+               (Logs, Health, DB, Metrics, Deploy, Config)
+                          ↓
+                  Hypotheses & RCA
+                          ↓
+               Groq Llama 3.3 Inference
 ```
 
 ---
 
 ## Tech Stack
 
-### Frontend
+### Frontend (`apps/web`)
 - React 19 + TypeScript
 - Vite
 - React Router v7
 - TanStack Query v5
-- Axios (typed API client)
-- Custom CSS design system (dark control room theme)
+- AI Investigation Control Room Component & Telemetry Radar
 
-### Backend
+### Product Backend (`apps/api`)
 - Node.js + NestJS 12
-- TypeScript (strict mode)
+- TypeScript (strict mode, ESM)
 - TypeORM + PostgreSQL
 - JWT authentication (Passport.js)
-- bcrypt password hashing
-- class-validator / class-transformer
+- Investigation persistence & life-cycle orchestration
 
-### Development
-- Git
-- Vitest (testing)
-- ESLint + Prettier
+### AI Backend (`apps/ai`)
+- Python 3.14 + FastAPI
+- LangGraph 1.2+ stateful orchestration
+- Groq (`llama-3.3-70b-versatile`) LLM inference
+- 6 Specialized telemetry domain agents
+- Controlled, audited investigation tools
+- Deterministic simulation fixtures & scenario providers
+
 
 ---
 

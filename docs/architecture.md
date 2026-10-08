@@ -2,33 +2,38 @@
 
 ## System Overview
 
-OpsPilot V1 is a monorepo containing two applications:
+OpsPilot V2 architecture consists of three integrated services:
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        Browser                               │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  React + Vite (apps/web)                              │  │
-│  │  - Auth pages (login, register)                       │  │
-│  │  - Dashboard                                          │  │
-│  │  - Projects & Incidents                               │  │
+│  │  React + Vite Control Room (apps/web)                  │  │
+│  │  - Auth & Dashboard                                    │  │
+│  │  - Incident Lifecycle & Timeline                       │  │
+│  │  - AI Investigation Control Room                       │  │
 │  └──────────────────────┬─────────────────────────────────┘  │
 │                         │ REST + JWT                         │
 │  ┌──────────────────────▼─────────────────────────────────┐  │
-│  │  NestJS API (apps/api)                                │  │
-│  │  - Controllers (thin HTTP layer)                      │  │
-│  │  - Services (business logic)                          │  │
-│  │  - Guards (auth enforcement)                          │  │
-│  │  - TypeORM entities + repositories                    │  │
-│  └──────────────────────┬─────────────────────────────────┘  │
-│                         │ TypeORM                            │
-│  ┌──────────────────────▼─────────────────────────────────┐  │
-│  │  PostgreSQL                                           │  │
-│  │  - users, projects, project_members                   │  │
-│  │  - incidents, incident_events, audit_logs             │  │
-│  └────────────────────────────────────────────────────────┘  │
+│  │  NestJS Product API (apps/api)                         │  │
+│  │  - Auth & Authorization                                │  │
+│  │  - Incidents & Projects                                │  │
+│  │  - Investigation Lifecycle Persistence                 │  │
+│  │  - Internal Service Dispatcher                         │  │
+│  └──────────┬─────────────────────────────┬───────────────┘  │
+│             │ TypeORM                     │ Internal Auth    │
+│  ┌──────────▼──────────────┐   ┌──────────▼───────────────┐  │
+│  │  PostgreSQL             │   │  FastAPI AI Layer        │  │
+│  │  - users, projects      │   │  (apps/ai)               │  │
+│  │  - incidents, events    │   │  - LangGraph Orchestrator│  │
+│  │  - investigations       │   │  - 6 Domain Agents       │  │
+│  │  - evidence, hypotheses │   │  - Controlled Tools      │  │
+│  │  - recommendations      │   │  - RCA Engine            │  │
+│  │  - agent_runs           │   │  - Groq LLM Inference    │  │
+│  └─────────────────────────┘   └──────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
+
 
 ## Backend Architecture
 
