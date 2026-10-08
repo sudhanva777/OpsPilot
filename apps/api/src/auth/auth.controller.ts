@@ -8,7 +8,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { Request } from 'express';
+import * as express from 'express';
 import { AuthService } from './auth.service.js';
 import { RegisterDto } from './dto/register.dto.js';
 import { LoginDto } from './dto/login.dto.js';
@@ -37,14 +37,14 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  async register(@Body() dto: RegisterDto, @Req() req: Request) {
+  async register(@Body() dto: RegisterDto, @Req() req: express.Request) {
     const ipAddress = req.ip ?? req.socket?.remoteAddress ?? null;
     return this.authService.register(dto, ipAddress ?? undefined);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() dto: LoginDto, @Req() req: Request) {
+  async login(@Body() dto: LoginDto, @Req() req: express.Request) {
     const ipAddress = req.ip ?? req.socket?.remoteAddress ?? null;
     return this.authService.login(dto, ipAddress ?? undefined);
   }

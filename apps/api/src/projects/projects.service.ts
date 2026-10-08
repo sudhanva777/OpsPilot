@@ -122,7 +122,7 @@ export class ProjectsService {
     // Return only projects the user is a member of
     const memberships = await this.membersRepository.find({
       where: { userId },
-      relations: ['project'],
+      relations: { project: true },
     });
     return memberships.map((m) => m.project);
   }
@@ -132,7 +132,7 @@ export class ProjectsService {
 
     const project = await this.projectsRepository.findOne({
       where: { id: projectId },
-      relations: ['createdBy', 'members', 'members.user'],
+      relations: { createdBy: true, members: { user: true } },
     });
 
     if (!project) {

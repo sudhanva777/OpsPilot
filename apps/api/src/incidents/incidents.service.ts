@@ -72,7 +72,7 @@ export class IncidentsService {
   ): Promise<Incident> {
     const incident = await this.incidentsRepository.findOne({
       where: { id: incidentId },
-      relations: ['createdBy', 'assignedTo', 'project'],
+      relations: { createdBy: true, assignedTo: true, project: true },
     });
 
     if (!incident) {
@@ -136,7 +136,7 @@ export class IncidentsService {
 
     return this.incidentsRepository.find({
       where: { projectId },
-      relations: ['createdBy', 'assignedTo'],
+      relations: { createdBy: true, assignedTo: true },
       order: { createdAt: 'DESC' },
     });
   }
@@ -274,7 +274,7 @@ export class IncidentsService {
 
     return this.eventsRepository.find({
       where: { incidentId },
-      relations: ['actor'],
+      relations: { actor: true },
       order: { createdAt: 'ASC' },
     });
   }

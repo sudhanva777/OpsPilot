@@ -7,8 +7,8 @@ import {
   OneToMany,
   Index,
 } from 'typeorm';
-import { ProjectMember } from '../projects/entities/project-member.entity.js';
-import { Incident } from '../incidents/entities/incident.entity.js';
+import { ProjectMember } from '../../projects/entities/project-member.entity.js';
+import { Incident } from '../../incidents/entities/incident.entity.js';
 
 /**
  * User entity.
