@@ -95,4 +95,8 @@ export class Incident {
 
   @OneToMany(() => IncidentEvent, (event) => event.incident, { cascade: true })
   events: IncidentEvent[];
+
+  @OneToMany('Investigation', 'incident')
+  investigations?: any[];
 }
+

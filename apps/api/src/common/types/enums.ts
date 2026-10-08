@@ -50,6 +50,10 @@ export enum AuditAction {
   INCIDENT_UPDATED = 'INCIDENT_UPDATED',
   INCIDENT_STATUS_CHANGED = 'INCIDENT_STATUS_CHANGED',
   INCIDENT_DELETED = 'INCIDENT_DELETED',
+  // V2 Investigations
+  INVESTIGATION_STARTED = 'INVESTIGATION_STARTED',
+  INVESTIGATION_COMPLETED = 'INVESTIGATION_COMPLETED',
+  INVESTIGATION_FAILED = 'INVESTIGATION_FAILED',
 }
 
 export enum AuditResourceType {
@@ -57,4 +61,45 @@ export enum AuditResourceType {
   PROJECT = 'PROJECT',
   PROJECT_MEMBER = 'PROJECT_MEMBER',
   INCIDENT = 'INCIDENT',
+  INVESTIGATION = 'INVESTIGATION',
 }
+
+// ─── V2 Investigation Enums ──────────────────────────────────────────────────
+
+export enum InvestigationStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum EvidenceType {
+  LOG = 'LOG',
+  HEALTH = 'HEALTH',
+  DATABASE = 'DATABASE',
+  METRIC = 'METRIC',
+  DEPLOYMENT = 'DEPLOYMENT',
+  CONFIGURATION = 'CONFIGURATION',
+}
+
+export enum HypothesisStatus {
+  PROPOSED = 'PROPOSED',
+  SUPPORTED = 'SUPPORTED',
+  REJECTED = 'REJECTED',
+}
+
+export enum RiskLevel {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export enum AgentRunStatus {
+  PENDING = 'PENDING',
+  RUNNING = 'RUNNING',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+}
+

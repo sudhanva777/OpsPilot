@@ -17,6 +17,12 @@ import { ProjectMember } from './projects/entities/project-member.entity.js';
 import { Incident } from './incidents/entities/incident.entity.js';
 import { IncidentEvent } from './incidents/entities/incident-event.entity.js';
 import { AuditLog } from './audit/entities/audit-log.entity.js';
+import { Investigation } from './investigations/entities/investigation.entity.js';
+import { InvestigationEvidence } from './investigations/entities/investigation-evidence.entity.js';
+import { InvestigationHypothesis } from './investigations/entities/investigation-hypothesis.entity.js';
+import { InvestigationRecommendation } from './investigations/entities/investigation-recommendation.entity.js';
+import { AgentRun } from './investigations/entities/agent-run.entity.js';
+import { InvestigationsModule } from './investigations/investigations.module.js';
 
 @Module({
   imports: [
@@ -33,7 +39,19 @@ import { AuditLog } from './audit/entities/audit-log.entity.js';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('database.url'),
-        entities: [User, Project, ProjectMember, Incident, IncidentEvent, AuditLog],
+        entities: [
+          User,
+          Project,
+          ProjectMember,
+          Incident,
+          IncidentEvent,
+          AuditLog,
+          Investigation,
+          InvestigationEvidence,
+          InvestigationHypothesis,
+          InvestigationRecommendation,
+          AgentRun,
+        ],
         // Migrations are run via CLI, not at startup
         migrations: ['dist/database/migrations/*.js'],
         migrationsRun: false,
@@ -53,6 +71,7 @@ import { AuditLog } from './audit/entities/audit-log.entity.js';
     AuthModule,
     ProjectsModule,
     IncidentsModule,
+    InvestigationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
