@@ -43,6 +43,21 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output/
+.pytest_cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
 
 # TypeScript
 *.tsbuildinfo
