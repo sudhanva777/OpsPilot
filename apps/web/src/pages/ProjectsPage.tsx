@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { projectsApi } from '../../services/api/projectsApi';
-import { timeAgo, getErrorMessage } from '../../utils';
-import type { CreateProjectInput } from '../../types';
+import { projectsApi } from '../services/api/projectsApi';
+import { timeAgo, getErrorMessage } from '../utils';
+import type { CreateProjectInput } from '../types';
 
 export default function ProjectsPage() {
   const navigate = useNavigate();

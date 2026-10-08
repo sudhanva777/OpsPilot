@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { projectsApi } from '../../services/api/projectsApi';
-import { incidentsApi } from '../../services/api/incidentsApi';
-import { SEVERITY_CONFIG, STATUS_CONFIG, timeAgo } from '../../utils';
-import type { Incident, IncidentSeverity, IncidentStatus } from '../../types';
+import { projectsApi } from '../services/api/projectsApi';
+import { incidentsApi } from '../services/api/incidentsApi';
+import { SEVERITY_CONFIG, STATUS_CONFIG, timeAgo } from '../utils';
+import type { Incident, IncidentSeverity, IncidentStatus } from '../types';
 
 export default function DashboardPage() {
   const navigate = useNavigate();

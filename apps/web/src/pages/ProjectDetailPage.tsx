@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { projectsApi } from '../../services/api/projectsApi';
-import { incidentsApi } from '../../services/api/incidentsApi';
-import { SEVERITY_CONFIG, STATUS_CONFIG, timeAgo, getErrorMessage } from '../../utils';
-import type { CreateIncidentInput, IncidentSeverity, Incident } from '../../types';
+import { projectsApi } from '../services/api/projectsApi';
+import { incidentsApi } from '../services/api/incidentsApi';
+import { SEVERITY_CONFIG, STATUS_CONFIG, timeAgo, getErrorMessage } from '../utils';
+import type { CreateIncidentInput, IncidentSeverity, Incident } from '../types';
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();

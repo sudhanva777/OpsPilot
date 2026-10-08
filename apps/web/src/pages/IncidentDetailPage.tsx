@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { incidentsApi } from '../../services/api/incidentsApi';
+import { incidentsApi } from '../services/api/incidentsApi';
 import {
   SEVERITY_CONFIG,
   STATUS_CONFIG,
@@ -9,9 +9,9 @@ import {
   formatDate,
   formatTime,
   getErrorMessage,
-} from '../../utils';
-import { VALID_STATUS_TRANSITIONS } from '../../types';
-import type { IncidentStatus, IncidentEvent } from '../../types';
+} from '../utils';
+import { VALID_STATUS_TRANSITIONS } from '../types';
+import type { IncidentStatus, IncidentEvent } from '../types';
 
 export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
