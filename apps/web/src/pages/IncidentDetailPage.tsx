@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { incidentsApi } from '../services/api/incidentsApi';
+import { InvestigationControlRoom } from '../components/investigation/InvestigationControlRoom';
 import {
   SEVERITY_CONFIG,
   STATUS_CONFIG,
@@ -17,7 +17,7 @@ export default function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [showStatusModal, setShowStatusModal] = useState(false);
+
 
   const {
     data: incident,
@@ -115,6 +115,9 @@ export default function IncidentDetailPage() {
             </div>
           )}
 
+          {/* AI Investigation Engine Control Room */}
+          <InvestigationControlRoom incident={incident} />
+
           {/* Timeline */}
           <div className="card" style={{ marginBottom: '24px' }}>
             <div className="card-header">
@@ -142,32 +145,8 @@ export default function IncidentDetailPage() {
               )}
             </div>
           </div>
-
-          {/* V2 Investigation Extension Point */}
-          <div className="card" style={{ marginBottom: '24px' }}>
-            <div className="card-header">
-              <h3>Investigation</h3>
-              <span
-                className="badge"
-                style={{
-                  background: 'rgba(139, 92, 246, 0.12)',
-                  color: '#8b5cf6',
-                }}
-              >
-                Coming in V2
-              </span>
-            </div>
-            <div className="card-body">
-              <div className="investigation-placeholder">
-                <p>🔍 AI-powered investigation will appear here in V2.</p>
-                <p style={{ marginTop: '8px', fontSize: '0.8rem' }}>
-                  Root cause analysis, evidence collection, and remediation recommendations
-                  powered by LangGraph agents.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
+
 
         {/* Right Column: Metadata & Actions */}
         <div>
@@ -348,6 +327,7 @@ function getEventDescription(event: IncidentEvent): string {
     case 'INCIDENT_REOPENED':
       return 'reopened this incident';
     default:
-      return event.eventType.toLowerCase().replace(/_/g, ' ');
+      return String(event.eventType).toLowerCase().replace(/_/g, ' ');
   }
+
 }

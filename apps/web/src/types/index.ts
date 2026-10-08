@@ -148,3 +148,6 @@ export const VALID_STATUS_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> 
   RESOLVED: ['CLOSED', 'INVESTIGATING'],
   CLOSED: ['INVESTIGATING'],
 };
+
+export * from './investigation';
+
