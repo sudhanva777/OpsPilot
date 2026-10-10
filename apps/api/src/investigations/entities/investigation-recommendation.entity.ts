@@ -1,3 +1,4 @@
+import type { Relation } from 'typeorm';
 import {
   Entity,
   PrimaryColumn,
@@ -19,7 +20,7 @@ export class InvestigationRecommendation {
 
   @OneToOne(() => Investigation, (inv) => inv.recommendation, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'investigation_id' })
-  investigation!: Investigation;
+  investigation!: Relation<Investigation>;
 
   @Column({ type: 'text' })
   action!: string;

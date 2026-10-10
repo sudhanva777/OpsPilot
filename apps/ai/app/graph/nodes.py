@@ -272,6 +272,9 @@ def create_evaluate_hypotheses_node(ctx: GraphNodeContext):
             "summary": res.get("summary"),
             "_raw_rec": res.get("raw_recommendation"),
             "agentResults": [res.get("run")] if res.get("run") else [],
+            "aiProvider": res.get("provider"),
+            "fallbackUsed": res.get("fallbackUsed", False),
+            "fallbackReason": res.get("fallbackReason"),
         }
     return evaluate_hypotheses
 

@@ -1,3 +1,4 @@
+import type { Relation } from 'typeorm';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -26,7 +27,7 @@ export class Investigation {
 
   @ManyToOne(() => Incident, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'incident_id' })
-  incident!: Incident;
+  incident!: Relation<Incident>;
 
   @Column({
     type: 'enum',
@@ -59,22 +60,22 @@ export class Investigation {
   @OneToMany(() => InvestigationEvidence, (e) => e.investigation, {
     cascade: true,
   })
-  evidence!: InvestigationEvidence[];
+  evidence!: Relation<InvestigationEvidence[]>;
 
   @OneToMany(() => InvestigationHypothesis, (h) => h.investigation, {
     cascade: true,
   })
-  hypotheses!: InvestigationHypothesis[];
+  hypotheses!: Relation<InvestigationHypothesis[]>;
 
   @OneToOne(() => InvestigationRecommendation, (r) => r.investigation, {
     cascade: true,
   })
-  recommendation?: InvestigationRecommendation | null;
+  recommendation?: Relation<InvestigationRecommendation | null>;
 
   @OneToMany(() => AgentRun, (r) => r.investigation, {
     cascade: true,
   })
-  agentRuns!: AgentRun[];
+  agentRuns!: Relation<AgentRun[]>;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   createdAt!: Date;

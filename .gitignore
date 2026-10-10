@@ -67,3 +67,4 @@ build/
 
 # Misc
 *.local
+.neon

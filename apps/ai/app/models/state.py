@@ -39,3 +39,6 @@ class InvestigationGraphState(TypedDict, total=False):
     _raw_rec: Optional[Dict[str, Any]]
     recommendation: Optional[RecommendationItem]
     summary: Optional[str]
+    aiProvider: Optional[str]
+    fallbackUsed: Optional[bool]
+    fallbackReason: Optional[str]

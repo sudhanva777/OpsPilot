@@ -1,6 +1,9 @@
+import asyncio
 import json
 import logging
+import os
 import re
+import time
 from typing import Any, Dict, List, Optional
 from groq import AsyncGroq
 
@@ -17,17 +20,102 @@ logger = logging.getLogger("LLMService")
 
 
 class LLMService:
-    """Service abstraction for Groq LLM interactions and evidence-first reasoning."""
+    """Service abstraction for multi-provider LLM interactions (Gemini, Groq) and evidence-first reasoning."""
 
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
-        self.api_key = api_key or settings.groq_api_key
-        self.model = model or settings.groq_model
-        self.client: Optional[AsyncGroq] = None
-        if self.api_key and self.api_key.strip() and not self.api_key.startswith("your_"):
-            try:
-                self.client = AsyncGroq(api_key=self.api_key)
-            except Exception as e:
-                logger.warning(f"Failed to initialize Groq client: {e}")
+    def __init__(
+        self,
+        provider: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
+        retry_delay: Optional[float] = None,
+        thinking_budget: Optional[int] = None,
+    ):
+        self.provider = (provider or settings.resolved_ai_provider).lower().strip()
+        if self.provider not in ("gemini", "groq"):
+            logger.warning(f"Unrecognized AI_PROVIDER '{self.provider}'. Defaulting to 'gemini'.")
+            self.provider = "gemini"
+
+        self.api_key: Optional[str] = None
+        self.model: str = ""
+        self.groq_client: Optional[AsyncGroq] = None
+        self.gemini_client: Optional[Any] = None
+
+        if self.provider == "gemini":
+            if api_key is not None:
+                self.api_key = api_key
+            else:
+                self.api_key = settings.gemini_api_key or os.getenv("GEMINI_API_KEY")
+            self.model = model or settings.gemini_model
+            self.timeout: float = timeout if timeout is not None else settings.gemini_timeout
+            self.max_retries: int = max_retries if max_retries is not None else settings.gemini_max_retries
+            self.retry_delay: float = retry_delay if retry_delay is not None else settings.gemini_retry_delay
+            self.thinking_budget: Optional[int] = (
+                thinking_budget if thinking_budget is not None else settings.gemini_thinking_budget
+            )
+            if self._is_valid_key(self.api_key):
+                try:
+                    from google import genai
+                    from google.genai import types
+                    # Note: google.genai types.HttpOptions.timeout is in milliseconds!
+                    timeout_ms = int(self.timeout * 1000)
+                    self.gemini_client = genai.Client(
+                        api_key=self.api_key,
+                        http_options=types.HttpOptions(timeout=timeout_ms),
+                    )
+                    logger.info(
+                        f"Initialized Gemini client with model '{self.model}', "
+                        f"timeout={self.timeout}s, max_retries={self.max_retries}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to initialize Gemini client: {e}")
+            else:
+                self.gemini_client = None
+        elif self.provider == "groq":
+            if api_key is not None:
+                self.api_key = api_key
+            else:
+                self.api_key = settings.groq_api_key or os.getenv("GROQ_API_KEY")
+            self.model = model or settings.groq_model
+            self.timeout = timeout if timeout is not None else settings.groq_timeout
+            self.max_retries = max_retries if max_retries is not None else settings.groq_max_retries
+            self.retry_delay = retry_delay if retry_delay is not None else 1.0
+            if self._is_valid_key(self.api_key):
+                try:
+                    self.groq_client = AsyncGroq(
+                        api_key=self.api_key,
+                        timeout=self.timeout,
+                        max_retries=self.max_retries,
+                    )
+                    logger.info(
+                        f"Initialized Groq client with model '{self.model}', "
+                        f"timeout={self.timeout}s, max_retries={self.max_retries}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to initialize Groq client: {e}")
+            else:
+                self.groq_client = None
+
+    @staticmethod
+    def _is_valid_key(key: Optional[str]) -> bool:
+        return bool(key and key.strip() and not key.startswith("your_"))
+
+    @property
+    def client(self) -> Optional[Any]:
+        if self.provider == "gemini":
+            return self.gemini_client
+        return self.groq_client
+
+    @client.setter
+    def client(self, value: Any) -> None:
+        if self.provider == "gemini":
+            self.gemini_client = value
+        else:
+            self.groq_client = value
+
+    def __repr__(self) -> str:
+        return f"<LLMService provider={self.provider} model={self.model} client_ready={bool(self.client)}>"
 
     async def analyze_and_formulate_rca(
         self,
@@ -38,37 +126,91 @@ class LLMService:
     ) -> Dict[str, Any]:
         """Performs evidence-first hypothesis evaluation, RCA determination, and recommendation.
 
-        Attempts LLM generation if Groq is available; otherwise performs algorithmic
-        evidence analysis that inspects actual gathered evidence items.
+        Attempts LLM generation with the configured provider (Gemini or Groq);
+        falls back to algorithmic evidence evaluation if the provider is unconfigured, times out, or fails.
         """
-        if self.client:
-            try:
-                return await self._call_groq_reasoning(
-                    incident_title, incident_description, service, evidence_list
-                )
-            except Exception as e:
-                logger.error(f"Groq reasoning error, falling back to algorithmic reasoning: {e}")
+        fallback_reason: Optional[str] = None
 
-        # Deterministic evidence analysis engine
+        if self.provider == "gemini":
+            client = self.gemini_client or self.client
+            if client:
+                try:
+                    result = await self._call_gemini_reasoning(
+                        incident_title, incident_description, service, evidence_list
+                    )
+                    result["fallbackUsed"] = False
+                    result["provider"] = "gemini"
+                    result["model"] = self.model
+                    return result
+                except (asyncio.TimeoutError, TimeoutError) as e:
+                    logger.error(f"Gemini reasoning request timed out, falling back to algorithmic reasoning: {e}")
+                    fallback_reason = (
+                        f"Gemini API error (TimeoutError): request timed out after "
+                        f"{getattr(self, 'timeout', settings.gemini_timeout)}s "
+                        f"({getattr(self, 'max_retries', settings.gemini_max_retries)} retries)"
+                    )
+                except Exception as e:
+                    logger.error(f"Gemini reasoning error, falling back to algorithmic reasoning: {e}")
+                    fallback_reason = f"Gemini API error ({type(e).__name__}): {e}"
+            else:
+                fallback_reason = "Gemini provider client not configured or missing GEMINI_API_KEY"
+
+        elif self.provider == "groq":
+            client = self.groq_client or self.client
+            if client:
+                try:
+                    result = await self._call_groq_reasoning(
+                        incident_title, incident_description, service, evidence_list
+                    )
+                    result["fallbackUsed"] = False
+                    result["provider"] = "groq"
+                    result["model"] = self.model
+                    return result
+                except (asyncio.TimeoutError, TimeoutError) as e:
+                    logger.error(f"Groq reasoning request timed out, falling back to algorithmic reasoning: {e}")
+                    fallback_reason = (
+                        f"Groq API error (TimeoutError): request timed out after "
+                        f"{getattr(self, 'timeout', settings.groq_timeout)}s "
+                        f"({getattr(self, 'max_retries', settings.groq_max_retries)} retries)"
+                    )
+                except Exception as e:
+                    logger.error(f"Groq reasoning error, falling back to algorithmic reasoning: {e}")
+                    fallback_reason = f"Groq API error ({type(e).__name__}): {e}"
+            else:
+                fallback_reason = "Groq provider client not configured or missing GROQ_API_KEY"
+
+        else:
+            fallback_reason = f"Unsupported AI provider: '{self.provider}'"
+
+        logger.info(f"Using fallback reasoning engine. Reason: {fallback_reason}")
         return self._evaluate_evidence_algorithmically(
-            incident_title, incident_description, service, evidence_list
+            incident_title,
+            incident_description,
+            service,
+            evidence_list,
+            fallback_reason=fallback_reason,
         )
 
-    async def _call_groq_reasoning(
+
+    def _build_prompt_and_payload(
         self,
         incident_title: str,
         incident_description: Optional[str],
         service: Optional[str],
         evidence_list: List[EvidenceItem],
-    ) -> Dict[str, Any]:
-        """Calls Groq model with structured output prompt enforcing evidence-first reasoning."""
+    ) -> tuple[str, str]:
         evidence_summary = []
         for e in evidence_list:
             # Neutralize potential prompt injection attempts in raw logs/configs
-            safe_content = re.sub(r"(ignore\s+all\s+previous\s+instructions|system\s+prompt)", "[REDACTED_INJECTION_PATTERN]", e.content, flags=re.I)
+            safe_content = re.sub(
+                r"(ignore\s+all\s+previous\s+instructions|system\s+prompt)",
+                "[REDACTED_INJECTION_PATTERN]",
+                e.content,
+                flags=re.I,
+            )
             evidence_summary.append({
                 "id": e.id,
-                "type": e.type.value,
+                "type": e.type.value if hasattr(e.type, "value") else str(e.type),
                 "source": e.source,
                 "title": e.title,
                 "content": safe_content[:1500],
@@ -120,20 +262,263 @@ class LLMService:
             }
         }, indent=2)
 
-        completion = await self.client.chat.completions.create(
-            model=self.model,
-            temperature=settings.groq_temperature,
-            max_tokens=settings.groq_max_tokens,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content},
-            ],
+        return system_prompt, user_content
+
+    def _normalize_llm_response(self, parsed: Dict[str, Any], incident_title: str) -> Dict[str, Any]:
+        """Validates and normalizes structured LLM JSON output into OpsPilot RCA schema."""
+        root_cause = parsed.get("rootCause") or parsed.get("root_cause")
+        if not root_cause:
+            raise ValueError("LLM response missing 'rootCause' field")
+
+        hypotheses = parsed.get("hypotheses")
+        if not isinstance(hypotheses, list) or len(hypotheses) == 0:
+            raise ValueError("LLM response missing valid 'hypotheses' list")
+
+        confidence = parsed.get("confidence")
+        try:
+            confidence = float(confidence) if confidence is not None else 0.85
+            confidence = max(0.0, min(1.0, confidence))
+        except (ValueError, TypeError):
+            confidence = 0.85
+
+        summary = parsed.get("summary") or f"Root cause identified: {root_cause}"
+        confidence_factors = parsed.get("confidenceFactors") or parsed.get("confidence_factors") or []
+        if not isinstance(confidence_factors, list):
+            confidence_factors = [str(confidence_factors)]
+
+        raw_rec = parsed.get("recommendation") or {}
+        recommendation = {
+            "action": raw_rec.get("action", f"Investigate and remediate: {root_cause}"),
+            "reason": raw_rec.get("reason", "Addresses identified root cause"),
+            "riskLevel": raw_rec.get("riskLevel", raw_rec.get("risk_level", "HIGH")),
+            "confidence": float(raw_rec.get("confidence", confidence)),
+            "mitigationSteps": raw_rec.get("mitigationSteps", raw_rec.get("mitigation_steps", [
+                "Verify service telemetry in dashboards",
+                "Apply corrective remediation with team approval",
+            ])),
+        }
+
+        normalized_hypotheses = []
+        for h in hypotheses:
+            if not isinstance(h, dict):
+                continue
+            status_str = str(h.get("status", "REJECTED")).upper()
+            status = "SUPPORTED" if "SUPPORT" in status_str else "REJECTED"
+            h_conf = h.get("confidence", 0.5)
+            try:
+                h_conf = max(0.0, min(1.0, float(h_conf)))
+            except (ValueError, TypeError):
+                h_conf = 0.5
+
+            normalized_hypotheses.append({
+                "description": h.get("description", "Hypothesis"),
+                "status": status,
+                "confidence": h_conf,
+                "supportingEvidenceIds": h.get("supportingEvidenceIds") or h.get("supporting_evidence_ids") or [],
+                "contradictingEvidenceIds": h.get("contradictingEvidenceIds") or h.get("contradicting_evidence_ids") or [],
+                "reasoning": h.get("reasoning", ""),
+            })
+
+        return {
+            "summary": summary,
+            "hypotheses": normalized_hypotheses,
+            "rootCause": root_cause,
+            "confidence": confidence,
+            "confidenceFactors": confidence_factors,
+            "recommendation": recommendation,
+        }
+
+    async def _call_gemini_reasoning(
+        self,
+        incident_title: str,
+        incident_description: Optional[str],
+        service: Optional[str],
+        evidence_list: List[EvidenceItem],
+    ) -> Dict[str, Any]:
+        """Calls Google Gemini model with structured JSON output enforcing evidence-first reasoning.
+
+        Performance & Resilience Optimizations:
+        1. Explicitly disables automatic function calling (AFC) to eliminate SDK overhead and logs.
+        2. Configures thinking budget (defaults to 0 for Gemini Flash) to avoid unbounded reasoning latency.
+        3. Enforces an overall bounded end-to-end deadline so retries and backoff never multiply total time.
+        4. Partitions per-attempt transport HttpOptions timeout so remote server deadline is bounded.
+        5. Logs safe, structured timing metrics per attempt (elapsed_ms, attempt, error_code, fallback_used).
+        6. Implements fallback model resilience if primary model returns 504 DEADLINE_EXCEEDED or 404.
+        """
+        from google.genai import types
+
+        system_prompt, user_content = self._build_prompt_and_payload(
+            incident_title, incident_description, service, evidence_list
+        )
+
+        total_timeout = getattr(self, "timeout", settings.gemini_timeout)
+        deadline = time.time() + total_timeout
+
+        # Thinking config: 0 turns off dynamic thinking mode for Gemini Flash to eliminate thinking latency
+        thinking_budget = getattr(self, "thinking_budget", settings.gemini_thinking_budget)
+        thinking_config = (
+            types.ThinkingConfig(thinking_budget=thinking_budget)
+            if thinking_budget is not None
+            else None
+        )
+
+        client = self.gemini_client or self.client
+        max_retries = max(0, getattr(self, "max_retries", settings.gemini_max_retries))
+        retry_delay = getattr(self, "retry_delay", settings.gemini_retry_delay)
+        attempts = 1 + max_retries
+
+        current_model = self.model
+        response = None
+        last_exception: Optional[Exception] = None
+
+        for attempt in range(1, attempts + 1):
+            remaining_time = deadline - time.time()
+            if remaining_time <= 0.2:
+                logger.error(
+                    f"Gemini total operation deadline ({total_timeout}s) exceeded before attempt {attempt}."
+                )
+                raise asyncio.TimeoutError(
+                    f"Gemini total operation deadline ({total_timeout}s) exceeded"
+                )
+
+            # Partition per-attempt timeout so retries and server deadlines are bounded
+            if attempts > 1:
+                attempt_budget = remaining_time / (attempts - attempt + 1)
+                per_attempt_timeout = max(2.0, min(remaining_time, attempt_budget))
+            else:
+                per_attempt_timeout = remaining_time
+
+            timeout_ms = int(per_attempt_timeout * 1000)
+
+            # Build GenerateContentConfig with AFC explicitly disabled and bounded thinking
+            config = types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                temperature=settings.gemini_temperature,
+                max_output_tokens=settings.gemini_max_tokens,
+                response_mime_type="application/json",
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                thinking_config=thinking_config,
+                http_options=types.HttpOptions(timeout=timeout_ms),
+            )
+
+            t_attempt_start = time.time()
+            error_code: Optional[int] = None
+            status_str: str = "SUCCESS"
+
+            try:
+                # Wrap in asyncio.wait_for to strictly guarantee bounded request duration
+                response = await asyncio.wait_for(
+                    client.aio.models.generate_content(
+                        model=current_model,
+                        contents=user_content,
+                        config=config,
+                    ),
+                    timeout=per_attempt_timeout,
+                )
+                attempt_duration_ms = int((time.time() - t_attempt_start) * 1000)
+                logger.info(
+                    f"Gemini provider attempt {attempt}/{attempts}: elapsed_ms={attempt_duration_ms}, "
+                    f"status=SUCCESS, error_code=None, fallback_used=False, model={current_model}"
+                )
+                break
+
+            except Exception as e:
+                last_exception = e
+                attempt_duration_ms = int((time.time() - t_attempt_start) * 1000)
+
+                # Extract safe HTTP/API error code
+                if isinstance(e, asyncio.TimeoutError):
+                    status_str = "TIMEOUT"
+                    error_code = 504
+                else:
+                    status_str = type(e).__name__
+                    error_code = getattr(e, "code", None)
+                    if error_code is None and hasattr(e, "response"):
+                        error_code = getattr(e.response, "status_code", None)
+                    if error_code is None:
+                        err_str = str(e)
+                        if "504" in err_str:
+                            error_code = 504
+                        elif "404" in err_str:
+                            error_code = 404
+                        elif "429" in err_str:
+                            error_code = 429
+                        elif "503" in err_str:
+                            error_code = 503
+
+                is_final_attempt = (attempt == attempts) or ((deadline - time.time()) <= 0.5)
+                logger.warning(
+                    f"Gemini provider attempt {attempt}/{attempts}: elapsed_ms={attempt_duration_ms}, "
+                    f"status={status_str}, error_code={error_code}, fallback_used={is_final_attempt}, model={current_model}"
+                )
+
+                if is_final_attempt:
+                    logger.error(
+                        f"Gemini RCA exhausted all {attempt} attempt(s) (total deadline: {total_timeout}s). "
+                        f"Final error ({type(e).__name__}): {e}"
+                    )
+                    raise e
+
+                # Model resilience: If primary model returned 504 DEADLINE_EXCEEDED or 404 NOT_FOUND,
+                # switch candidate to gemini-3.5-flash for subsequent attempts
+                if error_code in (504, 404) and current_model != "gemini-3.5-flash":
+                    logger.info(
+                        f"Gemini model '{current_model}' encountered error {error_code}. "
+                        f"Flipping to fallback candidate 'gemini-3.5-flash' for subsequent retry."
+                    )
+                    current_model = "gemini-3.5-flash"
+
+                backoff = min(retry_delay * (2 ** (attempt - 1)), max(0.1, deadline - time.time() - 1.0))
+                if backoff > 0.05:
+                    await asyncio.sleep(backoff)
+
+        response_text = getattr(response, "text", "") or "{}"
+        response_text = response_text.strip()
+        if response_text.startswith("```"):
+            lines = response_text.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            response_text = "\n".join(lines).strip()
+
+        parsed = json.loads(response_text)
+        return self._normalize_llm_response(parsed, incident_title)
+
+    async def _call_groq_reasoning(
+
+        self,
+        incident_title: str,
+        incident_description: Optional[str],
+        service: Optional[str],
+        evidence_list: List[EvidenceItem],
+    ) -> Dict[str, Any]:
+        """Calls Groq model with structured output prompt enforcing evidence-first reasoning."""
+        system_prompt, user_content = self._build_prompt_and_payload(
+            incident_title, incident_description, service, evidence_list
+        )
+
+        client = self.groq_client or self.client
+        timeout_sec = getattr(self, "timeout", settings.groq_timeout)
+
+        completion = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=self.model,
+                temperature=settings.groq_temperature,
+                max_tokens=settings.groq_max_tokens,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+            ),
+            timeout=timeout_sec,
         )
 
         response_text = completion.choices[0].message.content or "{}"
         parsed = json.loads(response_text)
-        return parsed
+        return self._normalize_llm_response(parsed, incident_title)
+
 
     def _evaluate_evidence_algorithmically(
         self,
@@ -141,6 +526,7 @@ class LLMService:
         incident_description: Optional[str],
         service: Optional[str],
         evidence_list: List[EvidenceItem],
+        fallback_reason: Optional[str] = None,
     ) -> Dict[str, Any]:
         """General-purpose evidence evaluation engine.
 
@@ -496,6 +882,9 @@ class LLMService:
 
             action, reason, risk, steps = self._build_recommendation_for_type(best_hyp["_type"], best_hyp["_meta"], target_service)
 
+        if fallback_reason:
+            confidence_factors.append(f"Fallback reasoning engine active: {fallback_reason}")
+
         summary = f"Investigation concluded with {int(confidence * 100)}% confidence: {root_cause}."
 
         return {
@@ -511,6 +900,9 @@ class LLMService:
                 "confidence": confidence,
                 "mitigationSteps": steps,
             },
+            "fallbackUsed": True,
+            "provider": self.provider,
+            "fallbackReason": fallback_reason or f"AI provider '{self.provider}' unavailable",
         }
 
     # ─── Helper Signal Detectors ─────────────────────────────────────────────

@@ -1,3 +1,4 @@
+import type { Relation } from 'typeorm';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -59,9 +60,9 @@ export class IncidentEvent {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'incident_id' })
-  incident: Incident;
+  incident: Relation<Incident>;
 
   @ManyToOne(() => User, { eager: false, nullable: true })
   @JoinColumn({ name: 'actor_id' })
-  actor: User | null;
+  actor: Relation<User | null>;
 }

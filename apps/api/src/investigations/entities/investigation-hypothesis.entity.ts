@@ -1,3 +1,4 @@
+import type { Relation } from 'typeorm';
 import {
   Entity,
   PrimaryColumn,
@@ -20,7 +21,7 @@ export class InvestigationHypothesis {
 
   @ManyToOne(() => Investigation, (inv) => inv.hypotheses, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'investigation_id' })
-  investigation!: Investigation;
+  investigation!: Relation<Investigation>;
 
   @Column({ type: 'text' })
   description!: string;

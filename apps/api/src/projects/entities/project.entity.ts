@@ -1,3 +1,5 @@
+
+
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -9,6 +11,9 @@ import {
   JoinColumn,
   Index,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
+
+
 import { User } from '../../users/entities/user.entity.js';
 import { ProjectMember } from './project-member.entity.js';
 import { Incident } from '../../incidents/entities/incident.entity.js';
@@ -46,14 +51,14 @@ export class Project {
   // Relations
   @ManyToOne(() => User, { eager: false, nullable: false })
   @JoinColumn({ name: 'created_by_id' })
-  createdBy: User;
+  createdBy: Relation<User>;
 
   @Column({ type: 'uuid', name: 'created_by_id' })
   createdById: string;
 
   @OneToMany(() => ProjectMember, (pm) => pm.project, { cascade: true })
-  members: ProjectMember[];
+  members: Relation<ProjectMember[]>;
 
   @OneToMany(() => Incident, (incident) => incident.project)
-  incidents: Incident[];
+  incidents: Relation<Incident[]>;
 }

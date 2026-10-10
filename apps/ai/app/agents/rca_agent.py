@@ -64,7 +64,16 @@ class RcaAgent:
             confidence_factors = rca_result.get("confidenceFactors", [])
             summary = rca_result.get("summary", f"Root cause: {root_cause}")
 
+            fallback_used = bool(rca_result.get("fallbackUsed", False))
+            provider_name = rca_result.get("provider") or getattr(self.llm, "provider", "unknown")
+            fallback_reason = rca_result.get("fallbackReason")
+
             duration_ms = int((time.time() - t0) * 1000)
+            if fallback_used:
+                output_summary = f"RCA [Fallback Engine]: {root_cause} (Confidence: {int(confidence * 100)}%)"
+            else:
+                output_summary = f"RCA [{provider_name.upper()} LLM]: {root_cause} (Confidence: {int(confidence * 100)}%)"
+
             agent_run = AgentRunItem(
                 agent=agent_name,
                 status=AgentRunStatus.COMPLETED,
@@ -72,8 +81,14 @@ class RcaAgent:
                 completedAt=datetime.utcnow(),
                 durationMs=duration_ms,
                 inputSummary=f"Evaluated {len(evidence_list)} evidence records across 5 hypotheses",
-                outputSummary=f"RCA: {root_cause} (Confidence: {int(confidence * 100)}%)",
-                metadata={"confidence": confidence, "rootCause": root_cause},
+                outputSummary=output_summary,
+                metadata={
+                    "confidence": confidence,
+                    "rootCause": root_cause,
+                    "provider": provider_name,
+                    "fallbackUsed": fallback_used,
+                    "fallbackReason": fallback_reason,
+                },
             )
 
             return {
@@ -84,6 +99,9 @@ class RcaAgent:
                 "summary": summary,
                 "raw_recommendation": rca_result.get("recommendation"),
                 "run": agent_run,
+                "provider": provider_name,
+                "fallbackUsed": fallback_used,
+                "fallbackReason": fallback_reason,
             }
         except Exception as e:
             duration_ms = int((time.time() - t0) * 1000)

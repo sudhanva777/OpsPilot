@@ -101,6 +101,9 @@ class InvestigationService:
                 hypotheses=final_state.get("hypotheses", []),
                 recommendation=final_state.get("recommendation"),
                 agentRuns=final_state.get("agentResults", []),
+                aiProvider=final_state.get("aiProvider"),
+                fallbackUsed=final_state.get("fallbackUsed", False),
+                fallbackReason=final_state.get("fallbackReason"),
             )
             self._investigations[inv_id] = record
             logger.info(f"Investigation {inv_id} finished: {record.status} (RCA: {record.rootCause})")

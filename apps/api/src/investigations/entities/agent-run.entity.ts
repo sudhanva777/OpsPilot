@@ -6,6 +6,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Investigation } from './investigation.entity.js';
 import { AgentRunStatus } from '../../common/types/enums.js';
 
@@ -19,7 +20,7 @@ export class AgentRun {
 
   @ManyToOne(() => Investigation, (inv) => inv.agentRuns, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'investigation_id' })
-  investigation!: Investigation;
+  investigation!: Relation<Investigation>;
 
   @Column({ type: 'varchar', length: 128 })
   agent!: string;

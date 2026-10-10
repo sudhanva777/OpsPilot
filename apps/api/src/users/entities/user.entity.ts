@@ -1,3 +1,4 @@
+import type { Relation } from 'typeorm';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -49,11 +50,11 @@ export class User {
 
   // Relations
   @OneToMany(() => ProjectMember, (pm) => pm.user)
-  projectMemberships: ProjectMember[];
+  projectMemberships: Relation<ProjectMember[]>;
 
   @OneToMany(() => Incident, (incident) => incident.createdBy)
-  createdIncidents: Incident[];
+  createdIncidents: Relation<Incident[]>;
 
   @OneToMany(() => Incident, (incident) => incident.assignedTo)
-  assignedIncidents: Incident[];
+  assignedIncidents: Relation<Incident[]>;
 }

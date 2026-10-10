@@ -1,3 +1,4 @@
+import type { Relation } from 'typeorm';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -14,7 +15,7 @@ import { ProjectRole } from '../../common/types/enums.js';
 /**
  * ProjectMember entity.
  *
- * Explicit join table for user ↔ project membership with a role.
+ * Explicit join table for user â†” project membership with a role.
  *
  * Authorization is always checked by querying this table for the
  * authenticated userId + projectId before returning any resource.
@@ -49,11 +50,11 @@ export class ProjectMember {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'project_id' })
-  project: Project;
+  project: Relation<Project>;
 
   @ManyToOne(() => User, (user) => user.projectMemberships, {
     eager: false,
   })
   @JoinColumn({ name: 'user_id' })
-  user: User;
+  user: Relation<User>;
 }

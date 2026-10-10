@@ -33,7 +33,7 @@ Telemetry Sources (Logs, Health, DB, Metrics, Deployments, Config)
 | Service | Technology | Ownership & Responsibility |
 | :--- | :--- | :--- |
 | **Product API** | NestJS 12, TypeORM, PostgreSQL | Authentication, Authorization, Project membership, Incident state machine, Audit logging, Investigation lifecycle persistence. React communicates **only** with NestJS. |
-| **AI Investigation Service** | Python 3.14, FastAPI, LangGraph, Groq | Stateful LangGraph workflow orchestration, specialized domain agents, telemetry collection tools, hypothesis comparison, RCA & confidence scoring. |
+| **AI Investigation Service** | Python 3.14, FastAPI, LangGraph, Gemini / Groq | Stateful LangGraph workflow orchestration, specialized domain agents, telemetry collection tools, hypothesis comparison, RCA & confidence scoring. |
 | **Control Room UI** | React 19, TypeScript, Vite | SRE operator interface, live investigation telemetry radar, evidence exploration, hypotheses comparison, agent execution run inspector. |
 
 React **never** connects directly to FastAPI. Every investigation invocation is authenticated via JWT and authorized through project membership before being dispatched from NestJS to FastAPI.
@@ -154,7 +154,7 @@ Remediation Recommendation Formulation (Approval-gated)
 3. **Cross-Service Attribution**: Separates symptom service (e.g., `api-gateway` returning 504) from root-cause service (e.g., `auth-service` or `inventory-service` latency).
 4. **Temporal Correlation**: Directly cross-references deployment and configuration change timestamps against error onset timestamps. If degradation began before a release, the deployment hypothesis is actively rejected.
 5. **Missing Evidence & Uncertainty Handling**: If telemetry domains are missing or unavailable, the engine applies confidence penalties and records limitations rather than fabricating certainty. For healthy or non-anomalous systems, the engine returns `INCONCLUSIVE` (confidence < 0.50).
-6. **Dual Reasoning Layers**: Full Groq LLM inference with automated, deterministic algorithmic fallback guaranteeing complete reliability under API outages.
+6. **Dual Reasoning Layers**: Multi-provider LLM inference (Google Gemini & Groq) with automated, deterministic algorithmic fallback guaranteeing complete reliability under API outages.
 
 ---
 
@@ -178,7 +178,7 @@ The test suite validates both deterministic regression scenarios and novel, unpr
 | **Configuration Drift** | Secret rotation mismatch (`AUTH_AUDIENCE_URL`) | Identifies configuration incompatibility and token rejection. |
 | **Multiple Causes** | Competing database and dependency signals | Returns `ROOT_CAUSE_LIKELY` with bounded confidence (<= 0.75). |
 | **Cross-Service** | Ingress gateway 504 due to auth-service | Distinguishes symptom service from root cause service. |
-| **LLM Failure Resilience** | Upstream Groq connection reset | Seamlessly falls back to algorithmic engine without crashing. |
+| **LLM Failure Resilience** | Upstream provider error (Gemini/Groq) | Seamlessly falls back to algorithmic engine without crashing. |
 | **Regression Scenarios** | Payment failure, Bad deploy, High latency, Auth | Preserves 100% backward compatibility with V2 demo fixtures. |
 
 ---

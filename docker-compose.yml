@@ -25,6 +25,9 @@ services:
       PORT: 8000
       ENVIRONMENT: development
       INTERNAL_API_KEY: dev-internal-secret-key
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
       CORS_ORIGIN: http://localhost:3001

@@ -135,6 +135,9 @@ class InvestigationResponse(BaseModel):
     hypotheses: List[HypothesisItem] = Field(default_factory=list)
     recommendation: Optional[RecommendationItem] = None
     agentRuns: List[AgentRunItem] = Field(default_factory=list)
+    aiProvider: Optional[str] = None
+    fallbackUsed: bool = False
+    fallbackReason: Optional[str] = None
 
 
 class InvestigationListResponse(BaseModel):

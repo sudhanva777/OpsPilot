@@ -29,7 +29,7 @@ OpsPilot V2 architecture consists of three integrated services:
 │  │  - investigations       │   │  - 6 Domain Agents       │  │
 │  │  - evidence, hypotheses │   │  - Controlled Tools      │  │
 │  │  - recommendations      │   │  - RCA Engine            │  │
-│  │  - agent_runs           │   │  - Groq LLM Inference    │  │
+│  │  - agent_runs           │   │  - Gemini / Groq LLM     │  │
 │  └─────────────────────────┘   └──────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```

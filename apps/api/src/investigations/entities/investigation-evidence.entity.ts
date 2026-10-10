@@ -1,3 +1,4 @@
+import type { Relation } from 'typeorm';
 import {
   Entity,
   PrimaryColumn,
@@ -19,7 +20,7 @@ export class InvestigationEvidence {
 
   @ManyToOne(() => Investigation, (inv) => inv.evidence, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'investigation_id' })
-  investigation!: Investigation;
+  investigation!: Relation<Investigation>;
 
   @Column({
     type: 'enum',

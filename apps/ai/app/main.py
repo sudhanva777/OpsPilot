@@ -54,11 +54,17 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health", tags=["Health"])
 def health_check():
     """Health inspection endpoint for service monitoring and container orchestration."""
+    provider = settings.resolved_ai_provider
+    gemini_ready = bool(settings.gemini_api_key and not settings.gemini_api_key.startswith("your_"))
+    groq_ready = bool(settings.groq_api_key and not settings.groq_api_key.startswith("your_"))
     return {
         "status": "healthy",
         "service": "opspilot-ai",
         "version": "2.0.0",
-        "groq_configured": bool(settings.groq_api_key and not settings.groq_api_key.startswith("your_")),
+        "ai_provider": provider,
+        "provider_configured": gemini_ready if provider == "gemini" else groq_ready,
+        "gemini_configured": gemini_ready,
+        "groq_configured": groq_ready,
     }
 
 

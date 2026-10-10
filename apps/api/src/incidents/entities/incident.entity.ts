@@ -1,3 +1,4 @@
+import type { Relation } from 'typeorm';
 import {
   Entity,
   PrimaryGeneratedColumn,
@@ -15,7 +16,7 @@ import { IncidentEvent } from './incident-event.entity.js';
 import { IncidentSeverity, IncidentStatus } from '../../common/types/enums.js';
 
 /**
- * Incident entity — the central V1 domain object.
+ * Incident entity â€” the central V1 domain object.
  *
  * Status transitions are enforced by IncidentsService.validateTransition().
  * This entity does not enforce the state machine; it stores the result.
@@ -80,21 +81,21 @@ export class Incident {
   // Relations
   @ManyToOne(() => Project, (project) => project.incidents)
   @JoinColumn({ name: 'project_id' })
-  project: Project;
+  project: Relation<Project>;
 
   @ManyToOne(() => User, (user) => user.createdIncidents, { eager: false })
   @JoinColumn({ name: 'created_by_id' })
-  createdBy: User;
+  createdBy: Relation<User>;
 
   @ManyToOne(() => User, (user) => user.assignedIncidents, {
     eager: false,
     nullable: true,
   })
   @JoinColumn({ name: 'assigned_to_id' })
-  assignedTo: User | null;
+  assignedTo: Relation<User | null>;
 
   @OneToMany(() => IncidentEvent, (event) => event.incident, { cascade: true })
-  events: IncidentEvent[];
+  events: Relation<IncidentEvent[]>;
 
   @OneToMany('Investigation', 'incident')
   investigations?: any[];
